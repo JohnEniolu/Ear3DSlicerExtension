@@ -126,8 +126,8 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		# connections
 		self.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
 		self.outputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
-		self.leftAtlas.connect('toggled(bool)', self.onEarSelection)
-		self.rightAtlas.connect('toggled(bool)', self.onEarSelection)
+		self.leftAtlas.connect('toggled(bool)', self.onLeftEarSelection)
+		self.rightAtlas.connect('toggled(bool)', self.onRightEarSelection)
 		self.applyButton.connect('clicked(bool)', self.onApplyButton)
 
 		# Add vertical spacer
@@ -137,18 +137,22 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		self.onSelect()
 
 		# Refresh Ear Selection checkboxes state
-		self.onEarSelection()
+		self.onLeftEarSelection()
+		self.onRightEarSelection()
 
 
 
 	def onSelect(self):
 		self.applyButton.enabled = self.inputSelector.currentNode() and self.outputSelector.currentNode()
 
-	def onEarSelection(self):
-		if self.leftAtlas.isChecked == True:
-			self.rightAtlas.setChecked = False
-		elif self.rightAtlas.isChecked == False:
-			self.leftAtlas.isChecked = False
+	def onLeftEarSelection(self):
+		if self.leftAtlas.isChecked() == True:
+			self.rightAtlas.setChecked(False)
+
+	def onRightEarSelection(self):
+		if self.rightAtlas.isChecked() == True:
+			self.leftAtlas.setChecked(False)
+
 
 	def onApplyButton(self):
 		logic = AValue3DSlicerModuleLogic()
