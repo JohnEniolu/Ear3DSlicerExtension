@@ -7,132 +7,157 @@ import logging
 #
 # AValue3DSlicerModule
 #
-
 class AValue3DSlicerModule(ScriptedLoadableModule):
-  """Uses ScriptedLoadableModule base class, available at:
-  https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
-  """
+	"""Uses ScriptedLoadableModule base class,
+	available at:https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py """
 
-  def __init__(self, parent):
-    ScriptedLoadableModule.__init__(self, parent)
-    self.parent.title = "AValue3DSlicerModule" # TODO make this more human readable by adding spaces
-    self.parent.categories = ["Examples"]
-    self.parent.dependencies = []
-    self.parent.contributors = ["John Doe (AnyWare Corp.)"] # replace with "Firstname Lastname (Organization)"
-    self.parent.helpText = """
-This is an example of scripted loadable module bundled in an extension.
-It performs a simple thresholding on the input volume and optionally captures a screenshot.
-"""
-    self.parent.helpText += self.getDefaultModuleDocumentationLink()
-    self.parent.acknowledgementText = """
-This file was originally developed by Jean-Christophe Fillion-Robin, Kitware Inc.
-and Steve Pieper, Isomics, Inc. and was partially funded by NIH grant 3P41RR013218-12S1.
-""" # replace with organization, grant and thanks.
+	def __init__(self, parent):
+		ScriptedLoadableModule.__init__(self, parent)
+		self.parent.title = "AValue3DSlicerModule" # TODO make this more human readable by adding spaces
+		self.parent.categories = ["Examples"]
+		self.parent.dependencies = []
+		self.parent.contributors = ["John Eniolu (HML & SKA Lab.)"] # replace with "Firstname Lastname (Organization)"
+		self.parent.helpText = """
+		This is an example of scripted loadable module bundled in an extension.
+		It performs a simple thresholding on the input volume and optionally captures a screenshot."""
+		self.parent.helpText += self.getDefaultModuleDocumentationLink()
+		self.parent.acknowledgementText = """This file was originally developed by Jean-Christophe Fillion-Robin,
+		Kitware Inc.and Steve Pieper, Isomics, Inc.
+		and was partially funded by NIH grant 3P41RR013218-12S1.""" # replace with organization, grant and thanks.
 
 #
 # AValue3DSlicerModuleWidget
 #
 
 class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
-  """Uses ScriptedLoadableModuleWidget base class, available at:
-  https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
-  """
+	"""Uses ScriptedLoadableModuleWidget base class,
+	available at:https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py"""
 
-  def setup(self):
-    ScriptedLoadableModuleWidget.setup(self)
+	def setup(self):
+		ScriptedLoadableModuleWidget.setup(self)
 
-    # Instantiate and connect widgets ...
+		# Instantiate and connect widgets ...
 
-    #
-    # Parameters Area
-    #
-    parametersCollapsibleButton = ctk.ctkCollapsibleButton()
-    parametersCollapsibleButton.text = "Parameters"
-    self.layout.addWidget(parametersCollapsibleButton)
+		#
+		# INPUT AREA
+		#
+		inputCollapsibleButton = ctk.ctkCollapsibleButton()
+		inputCollapsibleButton.text = "Input"
+		self.layout.addWidget(inputCollapsibleButton)
 
-    # Layout within the dummy collapsible button
-    parametersFormLayout = qt.QFormLayout(parametersCollapsibleButton)
+		# Layout within the input collapsible button
+		inputFormLayout = qt.QFormLayout(inputCollapsibleButton)
 
-    #
-    # input volume selector
-    #
-    self.inputSelector = slicer.qMRMLNodeComboBox()
-    self.inputSelector.nodeTypes = ["vtkMRMLScalarVolumeNode"]
-    self.inputSelector.selectNodeUponCreation = True
-    self.inputSelector.addEnabled = False
-    self.inputSelector.removeEnabled = False
-    self.inputSelector.noneEnabled = False
-    self.inputSelector.showHidden = False
-    self.inputSelector.showChildNodeTypes = False
-    self.inputSelector.setMRMLScene( slicer.mrmlScene )
-    self.inputSelector.setToolTip( "Pick the input to the algorithm." )
-    parametersFormLayout.addRow("Input Volume: ", self.inputSelector)
+		#
+		# input volume selector
+		#
+		self.inputSelector = slicer.qMRMLNodeComboBox()
+		self.inputSelector.nodeTypes = ["vtkMRMLScalarVolumeNode"]
+		self.inputSelector.selectNodeUponCreation = True
+		self.inputSelector.addEnabled = False
+		self.inputSelector.removeEnabled = False
+		self.inputSelector.noneEnabled = False
+		self.inputSelector.showHidden = False
+		self.inputSelector.showChildNodeTypes = False
+		self.inputSelector.setMRMLScene( slicer.mrmlScene )
+		self.inputSelector.setToolTip( "Pick the input Image." )
+		inputFormLayout.addRow("Input Volume: ", self.inputSelector)
 
-    #
-    # output volume selector
-    #
-    self.outputSelector = slicer.qMRMLNodeComboBox()
-    self.outputSelector.nodeTypes = ["vtkMRMLScalarVolumeNode"]
-    self.outputSelector.selectNodeUponCreation = True
-    self.outputSelector.addEnabled = True
-    self.outputSelector.removeEnabled = True
-    self.outputSelector.noneEnabled = True
-    self.outputSelector.showHidden = False
-    self.outputSelector.showChildNodeTypes = False
-    self.outputSelector.setMRMLScene( slicer.mrmlScene )
-    self.outputSelector.setToolTip( "Pick the output to the algorithm." )
-    parametersFormLayout.addRow("Output Volume: ", self.outputSelector)
+		#
+		# atlas selection checkbox
+		#
+		self.leftAtlas = qt.QCheckBox(" Left Ear ")
+		self.leftAtlas.checked = False
+		self.leftAtlas.setToolTip("If checked left ear atlas is loaded and used for registration")
 
-    #
-    # threshold value
-    #
-    self.imageThresholdSliderWidget = ctk.ctkSliderWidget()
-    self.imageThresholdSliderWidget.singleStep = 0.1
-    self.imageThresholdSliderWidget.minimum = -100
-    self.imageThresholdSliderWidget.maximum = 100
-    self.imageThresholdSliderWidget.value = 0.5
-    self.imageThresholdSliderWidget.setToolTip("Set threshold value for computing the output image. Voxels that have intensities lower than this value will set to zero.")
-    parametersFormLayout.addRow("Image threshold", self.imageThresholdSliderWidget)
+		self.rightAtlas = qt.QCheckBox(" Right Ear ")
+		self.rightAtlas.checked = False
+		self.rightAtlas.setToolTip("If checked right ear atlas is loaded and used for registration")
 
-    #
-    # check box to trigger taking screen shots for later use in tutorials
-    #
-    self.enableScreenshotsFlagCheckBox = qt.QCheckBox()
-    self.enableScreenshotsFlagCheckBox.checked = 0
-    self.enableScreenshotsFlagCheckBox.setToolTip("If checked, take screen shots for tutorials. Use Save Data to write them to disk.")
-    parametersFormLayout.addRow("Enable Screenshots", self.enableScreenshotsFlagCheckBox)
+		earSelector = qt.QHBoxLayout()
+		earSelector.addWidget(self.leftAtlas)
+		earSelector.addWidget(self.rightAtlas)
+		inputFormLayout.addRow("Atlas Selection: ", earSelector)
 
-    #
-    # Apply Button
-    #
-    self.applyButton = qt.QPushButton("Apply")
-    self.applyButton.toolTip = "Run the algorithm."
-    self.applyButton.enabled = False
-    parametersFormLayout.addRow(self.applyButton)
 
-    # connections
-    self.applyButton.connect('clicked(bool)', self.onApplyButton)
-    self.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
-    self.outputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
+		#
+		# OUTPUT AREA
+		#
+		outputCollapsibleButton = ctk.ctkCollapsibleButton()
+		outputCollapsibleButton.text = "Output"
+		self.layout.addWidget(outputCollapsibleButton)
 
-    # Add vertical spacer
-    self.layout.addStretch(1)
+		# Layout within the output collapsible button
+		outputFormLayout = qt.QFormLayout(outputCollapsibleButton)
 
-    # Refresh Apply button state
-    self.onSelect()
+		#
+		# output volume selector
+		#
+		self.outputSelector = slicer.qMRMLNodeComboBox()
+		self.outputSelector.nodeTypes = ["vtkMRMLScalarVolumeNode"]
+		self.outputSelector.selectNodeUponCreation = True
+		self.outputSelector.addEnabled = True
+		self.outputSelector.removeEnabled = True
+		self.outputSelector.noneEnabled = True
+		self.outputSelector.showHidden = False
+		self.outputSelector.showChildNodeTypes = False
+		self.outputSelector.setMRMLScene( slicer.mrmlScene )
+		self.outputSelector.setToolTip( "select output Atlas." )
+		outputFormLayout.addRow("Output Atlas: ", self.outputSelector)
 
-  def cleanup(self):
-    pass
+		#
+		# PARAMETER AREA
+		#
+		parametersCollapsibleButton = ctk.ctkCollapsibleButton()
+		parametersCollapsibleButton.text = "Parameters"
+		self.layout.addWidget(parametersCollapsibleButton)
 
-  def onSelect(self):
-    self.applyButton.enabled = self.inputSelector.currentNode() and self.outputSelector.currentNode()
+		# Layout within the parameter collapsible button
+		parametersFormLayout = qt.QFormLayout(parametersCollapsibleButton)
 
-  def onApplyButton(self):
-    logic = AValue3DSlicerModuleLogic()
-    enableScreenshotsFlag = self.enableScreenshotsFlagCheckBox.checked
-    imageThreshold = self.imageThresholdSliderWidget.value
-    logic.run(self.inputSelector.currentNode(), self.outputSelector.currentNode(), imageThreshold, enableScreenshotsFlag)
+		#
+		# Apply Button
+		#
+		self.applyButton = qt.QPushButton("Calculate A-Value")
+		self.applyButton.toolTip = "Run the algorithm."
+		self.applyButton.enabled = False
+		parametersFormLayout.addRow(self.applyButton)
 
+		# connections
+		self.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
+		self.outputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
+		self.leftAtlas.connect('toggled(bool)', self.onEarSelection)
+		self.rightAtlas.connect('toggled(bool)', self.onEarSelection)
+		self.applyButton.connect('clicked(bool)', self.onApplyButton)
+
+		# Add vertical spacer
+		self.layout.addStretch(1)
+
+		# Refresh Apply button state
+		self.onSelect()
+
+		# Refresh Ear Selection checkboxes state
+		self.onEarSelection()
+
+
+
+	def onSelect(self):
+		self.applyButton.enabled = self.inputSelector.currentNode() and self.outputSelector.currentNode()
+
+	def onEarSelection(self):
+		if self.leftAtlas.isChecked == True:
+			self.rightAtlas.setChecked = False
+		elif self.rightAtlas.isChecked == False:
+			self.leftAtlas.isChecked = False
+
+	def onApplyButton(self):
+		logic = AValue3DSlicerModuleLogic()
+		#enableScreenshotsFlag = self.enableScreenshotsFlagCheckBox.checked
+		imageThreshold = self.imageThresholdSliderWidget.value
+		#logic.run(self.inputSelector.currentNode(), self.outputSelector.currentNode(), imageThreshold, enableScreenshotsFlag)
+
+	def cleanup(self):
+		pass
 #
 # AValue3DSlicerModuleLogic
 #
@@ -148,91 +173,91 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
   """
 
   def hasImageData(self,volumeNode):
-    """This is an example logic method that
-    returns true if the passed in volume
-    node has valid image data
-    """
-    if not volumeNode:
-      logging.debug('hasImageData failed: no volume node')
-      return False
-    if volumeNode.GetImageData() is None:
-      logging.debug('hasImageData failed: no image data in volume node')
-      return False
-    return True
+	"""This is an example logic method that
+	returns true if the passed in volume
+	node has valid image data
+	"""
+	if not volumeNode:
+	  logging.debug('hasImageData failed: no volume node')
+	  return False
+	if volumeNode.GetImageData() is None:
+		logging.debug('hasImageData failed: no image data in volume node')
+		return False
+	return True
 
-  def isValidInputOutputData(self, inputVolumeNode, outputVolumeNode):
-    """Validates if the output is not the same as input
-    """
-    if not inputVolumeNode:
-      logging.debug('isValidInputOutputData failed: no input volume node defined')
-      return False
-    if not outputVolumeNode:
-      logging.debug('isValidInputOutputData failed: no output volume node defined')
-      return False
-    if inputVolumeNode.GetID()==outputVolumeNode.GetID():
-      logging.debug('isValidInputOutputData failed: input and output volume is the same. Create a new volume for output to avoid this error.')
-      return False
-    return True
+	def isValidInputOutputData(self, inputVolumeNode, outputVolumeNode):
+		"""Validates if the output is not the same as input
+		"""
+		if not inputVolumeNode:
+			logging.debug('isValidInputOutputData failed: no input volume node defined')
+			return False
+		if not outputVolumeNode:
+			logging.debug('isValidInputOutputData failed: no output volume node defined')
+			return False
+		if inputVolumeNode.GetID()==outputVolumeNode.GetID():
+			logging.debug('isValidInputOutputData failed: input and output volume is the same. Create a new volume for output to avoid this error.')
+			return False
+		return True
 
   def takeScreenshot(self,name,description,type=-1):
-    # show the message even if not taking a screen shot
-    slicer.util.delayDisplay('Take screenshot: '+description+'.\nResult is available in the Annotations module.', 3000)
+	# show the message even if not taking a screen shot
+	slicer.util.delayDisplay('Take screenshot: '+description+'.\nResult is available in the Annotations module.', 3000)
 
-    lm = slicer.app.layoutManager()
-    # switch on the type to get the requested window
-    widget = 0
-    if type == slicer.qMRMLScreenShotDialog.FullLayout:
-      # full layout
-      widget = lm.viewport()
-    elif type == slicer.qMRMLScreenShotDialog.ThreeD:
-      # just the 3D window
-      widget = lm.threeDWidget(0).threeDView()
-    elif type == slicer.qMRMLScreenShotDialog.Red:
-      # red slice window
-      widget = lm.sliceWidget("Red")
-    elif type == slicer.qMRMLScreenShotDialog.Yellow:
-      # yellow slice window
-      widget = lm.sliceWidget("Yellow")
-    elif type == slicer.qMRMLScreenShotDialog.Green:
-      # green slice window
-      widget = lm.sliceWidget("Green")
-    else:
-      # default to using the full window
-      widget = slicer.util.mainWindow()
-      # reset the type so that the node is set correctly
-      type = slicer.qMRMLScreenShotDialog.FullLayout
+	lm = slicer.app.layoutManager()
+	# switch on the type to get the requested window
+	widget = 0
+	if type == slicer.qMRMLScreenShotDialog.FullLayout:
+	  # full layout
+	  widget = lm.viewport()
+	elif type == slicer.qMRMLScreenShotDialog.ThreeD:
+	  # just the 3D window
+	  widget = lm.threeDWidget(0).threeDView()
+	elif type == slicer.qMRMLScreenShotDialog.Red:
+	  # red slice window
+	  widget = lm.sliceWidget("Red")
+	elif type == slicer.qMRMLScreenShotDialog.Yellow:
+	  # yellow slice window
+	  widget = lm.sliceWidget("Yellow")
+	elif type == slicer.qMRMLScreenShotDialog.Green:
+	  # green slice window
+	  widget = lm.sliceWidget("Green")
+	else:
+	  # default to using the full window
+	  widget = slicer.util.mainWindow()
+	  # reset the type so that the node is set correctly
+	  type = slicer.qMRMLScreenShotDialog.FullLayout
 
-    # grab and convert to vtk image data
-    qpixMap = qt.QPixmap().grabWidget(widget)
-    qimage = qpixMap.toImage()
-    imageData = vtk.vtkImageData()
-    slicer.qMRMLUtils().qImageToVtkImageData(qimage,imageData)
+	# grab and convert to vtk image data
+	qpixMap = qt.QPixmap().grabWidget(widget)
+	qimage = qpixMap.toImage()
+	imageData = vtk.vtkImageData()
+	slicer.qMRMLUtils().qImageToVtkImageData(qimage,imageData)
 
-    annotationLogic = slicer.modules.annotations.logic()
-    annotationLogic.CreateSnapShot(name, description, type, 1, imageData)
+	annotationLogic = slicer.modules.annotations.logic()
+	annotationLogic.CreateSnapShot(name, description, type, 1, imageData)
 
   def run(self, inputVolume, outputVolume, imageThreshold, enableScreenshots=0):
-    """
-    Run the actual algorithm
-    """
+	"""
+	Run the actual algorithm
+	"""
 
-    if not self.isValidInputOutputData(inputVolume, outputVolume):
-      slicer.util.errorDisplay('Input volume is the same as output volume. Choose a different output volume.')
-      return False
+	if not self.isValidInputOutputData(inputVolume, outputVolume):
+	  slicer.util.errorDisplay('Input volume is the same as output volume. Choose a different output volume.')
+	  return False
 
-    logging.info('Processing started')
+	logging.info('Processing started')
 
-    # Compute the thresholded output volume using the Threshold Scalar Volume CLI module
-    cliParams = {'InputVolume': inputVolume.GetID(), 'OutputVolume': outputVolume.GetID(), 'ThresholdValue' : imageThreshold, 'ThresholdType' : 'Above'}
-    cliNode = slicer.cli.run(slicer.modules.thresholdscalarvolume, None, cliParams, wait_for_completion=True)
+	# Compute the thresholded output volume using the Threshold Scalar Volume CLI module
+	cliParams = {'InputVolume': inputVolume.GetID(), 'OutputVolume': outputVolume.GetID(), 'ThresholdValue' : imageThreshold, 'ThresholdType' : 'Above'}
+	cliNode = slicer.cli.run(slicer.modules.thresholdscalarvolume, None, cliParams, wait_for_completion=True)
 
-    # Capture screenshot
-    if enableScreenshots:
-      self.takeScreenshot('AValue3DSlicerModuleTest-Start','MyScreenshot',-1)
+	# Capture screenshot
+	if enableScreenshots:
+	  self.takeScreenshot('AValue3DSlicerModuleTest-Start','MyScreenshot',-1)
 
-    logging.info('Processing completed')
+	logging.info('Processing completed')
 
-    return True
+	return True
 
 
 class AValue3DSlicerModuleTest(ScriptedLoadableModuleTest):
@@ -243,48 +268,48 @@ class AValue3DSlicerModuleTest(ScriptedLoadableModuleTest):
   """
 
   def setUp(self):
-    """ Do whatever is needed to reset the state - typically a scene clear will be enough.
-    """
-    slicer.mrmlScene.Clear(0)
+	""" Do whatever is needed to reset the state - typically a scene clear will be enough.
+	"""
+	slicer.mrmlScene.Clear(0)
 
   def runTest(self):
-    """Run as few or as many tests as needed here.
-    """
-    self.setUp()
-    self.test_AValue3DSlicerModule1()
+	"""Run as few or as many tests as needed here.
+	"""
+	self.setUp()
+	self.test_AValue3DSlicerModule1()
 
   def test_AValue3DSlicerModule1(self):
-    """ Ideally you should have several levels of tests.  At the lowest level
-    tests should exercise the functionality of the logic with different inputs
-    (both valid and invalid).  At higher levels your tests should emulate the
-    way the user would interact with your code and confirm that it still works
-    the way you intended.
-    One of the most important features of the tests is that it should alert other
-    developers when their changes will have an impact on the behavior of your
-    module.  For example, if a developer removes a feature that you depend on,
-    your test should break so they know that the feature is needed.
-    """
+	""" Ideally you should have several levels of tests.  At the lowest level
+	tests should exercise the functionality of the logic with different inputs
+	(both valid and invalid).  At higher levels your tests should emulate the
+	way the user would interact with your code and confirm that it still works
+	the way you intended.
+	One of the most important features of the tests is that it should alert other
+	developers when their changes will have an impact on the behavior of your
+	module.  For example, if a developer removes a feature that you depend on,
+	your test should break so they know that the feature is needed.
+	"""
 
-    self.delayDisplay("Starting the test")
-    #
-    # first, get some data
-    #
-    import urllib
-    downloads = (
-        ('http://slicer.kitware.com/midas3/download?items=5767', 'FA.nrrd', slicer.util.loadVolume),
-        )
+	self.delayDisplay("Starting the test")
+	#
+	# first, get some data
+	#
+	import urllib
+	downloads = (
+		('http://slicer.kitware.com/midas3/download?items=5767', 'FA.nrrd', slicer.util.loadVolume),
+		)
 
-    for url,name,loader in downloads:
-      filePath = slicer.app.temporaryPath + '/' + name
-      if not os.path.exists(filePath) or os.stat(filePath).st_size == 0:
-        logging.info('Requesting download %s from %s...\n' % (name, url))
-        urllib.urlretrieve(url, filePath)
-      if loader:
-        logging.info('Loading %s...' % (name,))
-        loader(filePath)
-    self.delayDisplay('Finished with download and loading')
+	for url,name,loader in downloads:
+	  filePath = slicer.app.temporaryPath + '/' + name
+	  if not os.path.exists(filePath) or os.stat(filePath).st_size == 0:
+		logging.info('Requesting download %s from %s...\n' % (name, url))
+		urllib.urlretrieve(url, filePath)
+	  if loader:
+		logging.info('Loading %s...' % (name,))
+		loader(filePath)
+	self.delayDisplay('Finished with download and loading')
 
-    volumeNode = slicer.util.getNode(pattern="FA")
-    logic = AValue3DSlicerModuleLogic()
-    self.assertIsNotNone( logic.hasImageData(volumeNode) )
-    self.delayDisplay('Test passed!')
+	volumeNode = slicer.util.getNode(pattern="FA")
+	logic = AValue3DSlicerModuleLogic()
+	self.assertIsNotNone( logic.hasImageData(volumeNode) )
+	self.delayDisplay('Test passed!')
