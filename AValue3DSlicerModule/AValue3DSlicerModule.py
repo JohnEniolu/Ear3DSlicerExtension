@@ -155,10 +155,20 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 
 
 	def onApplyButton(self):
+
+		#Instantiate logic class
 		logic = AValue3DSlicerModuleLogic()
-		#enableScreenshotsFlag = self.enableScreenshotsFlagCheckBox.checked
-		imageThreshold = self.imageThresholdSliderWidget.value
-		#logic.run(self.inputSelector.currentNode(), self.outputSelector.currentNode(), imageThreshold, enableScreenshotsFlag)
+
+		#Check atlas selection
+		if(self.rightAtlas.isChecked()):
+			atlasSelection = "right"
+		elif(self.leftAtlas.isChecked()):
+			atlasSelection = "left"
+		else:
+			atlasSelection = "none"
+
+		#Run Atlas based on logic selection
+		logic.run(self.inputSelector.currentNode(), self.outputSelector.currentNode(), atlasSelection)
 
 	def cleanup(self):
 		pass
@@ -203,61 +213,32 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 			return False
 		return True
 
-  def takeScreenshot(self,name,description,type=-1):
-	# show the message even if not taking a screen shot
-	slicer.util.delayDisplay('Take screenshot: '+description+'.\nResult is available in the Annotations module.', 3000)
-
-	lm = slicer.app.layoutManager()
-	# switch on the type to get the requested window
-	widget = 0
-	if type == slicer.qMRMLScreenShotDialog.FullLayout:
-	  # full layout
-	  widget = lm.viewport()
-	elif type == slicer.qMRMLScreenShotDialog.ThreeD:
-	  # just the 3D window
-	  widget = lm.threeDWidget(0).threeDView()
-	elif type == slicer.qMRMLScreenShotDialog.Red:
-	  # red slice window
-	  widget = lm.sliceWidget("Red")
-	elif type == slicer.qMRMLScreenShotDialog.Yellow:
-	  # yellow slice window
-	  widget = lm.sliceWidget("Yellow")
-	elif type == slicer.qMRMLScreenShotDialog.Green:
-	  # green slice window
-	  widget = lm.sliceWidget("Green")
-	else:
-	  # default to using the full window
-	  widget = slicer.util.mainWindow()
-	  # reset the type so that the node is set correctly
-	  type = slicer.qMRMLScreenShotDialog.FullLayout
-
-	# grab and convert to vtk image data
-	qpixMap = qt.QPixmap().grabWidget(widget)
-	qimage = qpixMap.toImage()
-	imageData = vtk.vtkImageData()
-	slicer.qMRMLUtils().qImageToVtkImageData(qimage,imageData)
-
-	annotationLogic = slicer.modules.annotations.logic()
-	annotationLogic.CreateSnapShot(name, description, type, 1, imageData)
-
-  def run(self, inputVolume, outputVolume, imageThreshold, enableScreenshots=0):
+  def run(self, inputVolume, outputVolume, atlasSelection):
 	"""
 	Run the actual algorithm
 	"""
+	#check atlas selection
+	if(atlasSelection != 'None'):
+		if atlasSelection == 'right':
+			atlasVolume = "TODO: Load right atlas image"
+		else:
+			atlasVolume = "TODO: Load left atlas image"
+	else:
+		slicer.util.errorDisplay('Atlas not selected. Choose right or left ear atlas')
+		return False
 
+	#check appropriate volume is selected
 	if not self.isValidInputOutputData(inputVolume, outputVolume):
-	  slicer.util.errorDisplay('Input volume is the same as output volume. Choose a different output volume.')
-	  return False
+		slicer.util.errorDisplay('Input volume is the same as output volume. Choose a different output volume.')
+		return False
 
 	logging.info('Processing started')
 
 	# Compute the thresholded output volume using the Threshold Scalar Volume CLI module
-	cliParams = {'InputVolume': inputVolume.GetID(), 'OutputVolume': outputVolume.GetID(), 'ThresholdValue' : imageThreshold, 'ThresholdType' : 'Above'}
-	cliNode = slicer.cli.run(slicer.modules.thresholdscalarvolume, None, cliParams, wait_for_completion=True)
-
-	# Capture screenshot
-	if enableScreenshots:
-	  self.takeScreenshot('AValue3DSlicerModuleTest-Start','MyScreenshot',-1)
+	cliParams = {'fixedVolume': inputVolume.GetID(), 'movingVolume': atlasVolume.GetID()}
+	cliParams.update({"TODO - add multiple items to dictionary"})
+	#cliParams = {'InputVolume': inputVolume.GetID(), 'OutputVolume': outputVolume.GetID(), 'ThresholdValue' : imageThreshold, 'ThresholdType' : 'Above'}
+	cliNode = slicer.cli.run(slicer.modules.brainsfit, None, cliParams, wait_for_completion=True)
 
 	logging.info('Processing completed')
 
