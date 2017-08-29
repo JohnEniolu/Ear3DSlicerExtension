@@ -39,14 +39,14 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		# Instantiate and connect widgets ...
 
 		#
-		# INPUT AREA
+		# PARAMETER AREA
 		#
-		inputCollapsibleButton = ctk.ctkCollapsibleButton()
-		inputCollapsibleButton.text = "Input"
-		self.layout.addWidget(inputCollapsibleButton)
+		parametersCollapsibleButton = ctk.ctkCollapsibleButton()
+		parametersCollapsibleButton.text = "Parameters"
+		self.layout.addWidget(parametersCollapsibleButton)
 
 		# Layout within the input collapsible button
-		inputFormLayout = qt.QFormLayout(inputCollapsibleButton)
+		parametersFormLayout = qt.QFormLayout(parametersCollapsibleButton)
 
 		#
 		# input volume selector
@@ -60,8 +60,8 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		self.inputSelector.showHidden = False
 		self.inputSelector.showChildNodeTypes = False
 		self.inputSelector.setMRMLScene( slicer.mrmlScene )
-		self.inputSelector.setToolTip( "Pick the input Image." )
-		inputFormLayout.addRow("Input Volume: ", self.inputSelector)
+		self.inputSelector.setToolTip( "select input image." )
+		parametersFormLayout.addRow("Input Volume: ", self.inputSelector)
 
 		#
 		# atlas selection checkbox
@@ -77,21 +77,10 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		earSelector = qt.QHBoxLayout()
 		earSelector.addWidget(self.leftAtlas)
 		earSelector.addWidget(self.rightAtlas)
-		inputFormLayout.addRow("Atlas Selection: ", earSelector)
-
-
-		#
-		# OUTPUT AREA
-		#
-		outputCollapsibleButton = ctk.ctkCollapsibleButton()
-		outputCollapsibleButton.text = "Output"
-		self.layout.addWidget(outputCollapsibleButton)
-
-		# Layout within the output collapsible button
-		outputFormLayout = qt.QFormLayout(outputCollapsibleButton)
+		parametersFormLayout.addRow("Atlas Selection: ", earSelector)
 
 		#
-		# output volume selector
+		# output volume selector - TODO: Make it the location of the atlas. user entered??
 		#
 		self.outputSelector = slicer.qMRMLNodeComboBox()
 		self.outputSelector.nodeTypes = ["vtkMRMLScalarVolumeNode"]
@@ -102,18 +91,8 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		self.outputSelector.showHidden = False
 		self.outputSelector.showChildNodeTypes = False
 		self.outputSelector.setMRMLScene( slicer.mrmlScene )
-		self.outputSelector.setToolTip( "select output Atlas." )
-		outputFormLayout.addRow("Output Atlas: ", self.outputSelector)
-
-		#
-		# PARAMETER AREA
-		#
-		parametersCollapsibleButton = ctk.ctkCollapsibleButton()
-		parametersCollapsibleButton.text = "Parameters"
-		self.layout.addWidget(parametersCollapsibleButton)
-
-		# Layout within the parameter collapsible button
-		parametersFormLayout = qt.QFormLayout(parametersCollapsibleButton)
+		self.outputSelector.setToolTip( "select output volume " )
+		parametersFormLayout.addRow("Output Atlas Volume: ", self.outputSelector)
 
 		#
 		# Apply Button
@@ -140,8 +119,6 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		self.onLeftEarSelection()
 		self.onRightEarSelection()
 
-
-
 	def onSelect(self):
 		self.applyButton.enabled = self.inputSelector.currentNode() and self.outputSelector.currentNode()
 
@@ -161,14 +138,14 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 
 		#Check atlas selection
 		if(self.rightAtlas.isChecked()):
-			atlasSelection = "right"
+			self.atlasSelection = "right"
 		elif(self.leftAtlas.isChecked()):
-			atlasSelection = "left"
+			self.atlasSelection = "left"
 		else:
-			atlasSelection = "none"
+			self.atlasSelection = "none"
 
 		#Run Atlas based on logic selection
-		logic.run(self.inputSelector.currentNode(), self.outputSelector.currentNode(), atlasSelection)
+		logic.run(self.inputSelector.currentNode(), self.outputSelector.currentNode(), self.atlasSelection)
 
 	def cleanup(self):
 		pass
@@ -177,27 +154,27 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 #
 
 class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
-  """This class should implement all the actual
-  computation done by your module.  The interface
-  should be such that other python code can import
-  this class and make use of the functionality without
-  requiring an instance of the Widget.
-  Uses ScriptedLoadableModuleLogic base class, available at:
-  https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
-  """
 
-  def hasImageData(self,volumeNode):
-	"""This is an example logic method that
-	returns true if the passed in volume
-	node has valid image data
+	"""This class should implement all the actual
+	computation done by your module.  The interface
+	should be such that other python code can import
+	this class and make use of the functionality without
+	requiring an instance of the Widget.
+	Uses ScriptedLoadableModuleLogic base class, available at:
+	https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
 	"""
-	if not volumeNode:
-	  logging.debug('hasImageData failed: no volume node')
-	  return False
-	if volumeNode.GetImageData() is None:
-		logging.debug('hasImageData failed: no image data in volume node')
-		return False
-	return True
+	def hasImageData(self,volumeNode):
+		"""This is an example logic method that
+		returns true if the passed in volume
+		node has valid image data
+		"""
+		if not volumeNode:
+	  		logging.debug('hasImageData failed: no volume node')
+	  		return False
+		if volumeNode.GetImageData() is None:
+			logging.debug('hasImageData failed: no image data in volume node')
+			return False
+		return True
 
 	def isValidInputOutputData(self, inputVolumeNode, outputVolumeNode):
 		"""Validates if the output is not the same as input
@@ -213,36 +190,68 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 			return False
 		return True
 
-  def run(self, inputVolume, outputVolume, atlasSelection):
-	"""
-	Run the actual algorithm
-	"""
-	#check atlas selection
-	if(atlasSelection != 'None'):
-		if atlasSelection == 'right':
-			atlasVolume = "TODO: Load right atlas image"
+	def loadAtlasNodeAndFiducials(self, isRight,
+									atlasLocation = '/Users/JohnEniolu/Documents/AValueModuleData/1621R_20um-croppedAligned.nrrd',
+									fiducialLocation = '/User/JohnEniolu/Documents/AValueModuleData/Atlas_AValue_F.fcsv'):
+		#create atlasnode
+		if isRight:
+			atlasNode = slicer.util.loadVolume(atlasLocation, returnNode=True)
+			atlasFiducial = slicer.util.loadFiducialList(fiducialLocation, returnNode=True)
+			logging.info('Loaded right ear atlas')
 		else:
-			atlasVolume = "TODO: Load left atlas image"
-	else:
-		slicer.util.errorDisplay('Atlas not selected. Choose right or left ear atlas')
-		return False
+			#TODO - load the left atlass
+			#atlasNode = slicer.util.loadVolume()
+			#atlasFiducial = slicer.util.loadFiducialList(fiducialLocation, returnNode=True)
+			logging.info('Loaded left ear atlas')
+		return atlasNode
 
-	#check appropriate volume is selected
-	if not self.isValidInputOutputData(inputVolume, outputVolume):
-		slicer.util.errorDisplay('Input volume is the same as output volume. Choose a different output volume.')
-		return False
+	def loadAffineTransform(self, aTransLocation = '/Users/JohnEniolu/Documents/AValueModuleData/Atlas_to_2R_RIG.h5'):
+		#load Affine transform
+		affineTrans = slicer.util.loadTransform(aTransLocation, returnNode=True)
+		return affineTrans[1] #Return Transform only
 
-	logging.info('Processing started')
+	def loadBsplineTransform(self, bTransLocation = '/Users/JohnEniolu/Documents/AValueModuleData/Atlas_to_2R_nonRIG.h5'):
+		#load BSpline transform
+		bsplineTrans = slicer.util.loadTransform(bTransLocation, returnNode=True)
+		return bsplineTrans[1] #return Transform Only
 
-	# Compute the thresholded output volume using the Threshold Scalar Volume CLI module
-	cliParams = {'fixedVolume': inputVolume.GetID(), 'movingVolume': atlasVolume.GetID()}
-	cliParams.update({"TODO - add multiple items to dictionary"})
-	#cliParams = {'InputVolume': inputVolume.GetID(), 'OutputVolume': outputVolume.GetID(), 'ThresholdValue' : imageThreshold, 'ThresholdType' : 'Above'}
-	cliNode = slicer.cli.run(slicer.modules.brainsfit, None, cliParams, wait_for_completion=True)
+	def run(self, inputVolume, outputVolume, atlasSelection):
+		"""
+		Run the actual algorithm
+		"""
+		#check atlas selection then retrive atlas
+		if(atlasSelection != 'None'):
+			if atlasSelection == 'right':
+				self.loadedResult = self.loadAtlasNodeAndFiducials(True) #Returns tuple
+				self.atlasVolume  = self.loadedResult[1] #Retrieve atlas Volume from tuple
+			elif atlasSelection == 'left':
+				self.atlasVolume = self.loadAtlasNode(False)
+			else:
+				slicer.util.errorDisplay('Atlas not selected. Choose right or left ear atlas')
+				return False
 
-	logging.info('Processing completed')
+		#check appropriate volume is selected
+		if not self.isValidInputOutputData(inputVolume, outputVolume):
+			slicer.util.errorDisplay('Input volume is the same as output volume. Choose a different output volume.')
+			return False
+		#slicer.util.saveNode(outputVolume,'/Users/JohnEniolu/Documents/AValueModuleData/outputVolume')
 
-	return True
+		self.affineTransform 	= self.loadAffineTransform() #TODO - Can not load this, make it multilevel
+		self.bSplineTransform 	= self.loadBsplineTransform() #TODO - Return a BSpline Transform!!
+
+		# Create dictionary of required CLI parameters
+		cliParams = {'fixedVolume': inputVolume.GetID(), 'movingVolume': self.atlasVolume, 'outputVolume' : outputVolume.GetID() }
+		cliParams.update({'samplingPercentage': 1, 'initialTransform' : self.affineTransform, 'outputTransform': self.bSplineTransform })
+		cliParams.update({ 'transformType': 'BSpline', 'useBSpline' : 1, 'splineGridSize': '3,3,3'})
+		cliParams.update({'costMetric' : 'NC' })
+
+		cliNode = slicer.cli.run(slicer.modules.brainsfit, None, cliParams, wait_for_completion=True)
+
+		#TODO - Apply resulting transform to fiducials
+
+		logging.info('Processing completed')
+
+		return True
 
 
 class AValue3DSlicerModuleTest(ScriptedLoadableModuleTest):
