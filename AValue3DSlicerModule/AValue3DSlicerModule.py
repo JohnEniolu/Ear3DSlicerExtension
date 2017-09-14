@@ -3,6 +3,7 @@ import unittest
 import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
 import logging
+import math
 
 #
 # AValue3DSlicerModule
@@ -80,12 +81,13 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		parametersFormLayout.addRow("Atlas Selection: ", earSelector)
 
 		#
-		# output volume selector - TODO: Make it the location of the atlas. user entered??
+		# output volume selector
 		#
 		self.outputSelector = slicer.qMRMLNodeComboBox()
 		self.outputSelector.nodeTypes = ["vtkMRMLScalarVolumeNode"]
 		self.outputSelector.selectNodeUponCreation = True
 		self.outputSelector.addEnabled = True
+		self.outputSelector.renameEnabled - True
 		self.outputSelector.removeEnabled = True
 		self.outputSelector.noneEnabled = True
 		self.outputSelector.showHidden = False
@@ -93,6 +95,26 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		self.outputSelector.setMRMLScene( slicer.mrmlScene )
 		self.outputSelector.setToolTip( "select output volume " )
 		parametersFormLayout.addRow("Output Atlas Volume: ", self.outputSelector)
+
+
+		#
+		#Output Transform
+		#
+		#TODO - Create an instance of a transform Node to store transform result!!!
+
+		self.outputTransformSelector = slicer.qMRMLNodeComboBox()
+		self.outputTransformSelector.nodeTypes = ["vtkMRMLTransformNode"]
+		self.outputTransformSelector.addNode()
+		self.outputTransformSelector.selectNodeUponCreation = True
+		self.outputTransformSelector.addEnabled = True
+		self.outputTransformSelector.renameEnabled = True
+		self.outputTransformSelector.removeEnabled = True
+		self.outputTransformSelector.noneEnabled = True
+		# self.outputTransformSelector.showHidden = False
+		# self.outputTransformSelector.showChildNodeTypes = False
+		self.outputTransformSelector.setMRMLScene( slicer.mrmlScene )
+		self.outputTransformSelector.setToolTip( "output transform " )
+		parametersFormLayout.addRow("Output BSlpine Transform: ", self.outputTransformSelector)
 
 		#
 		# Apply Button
@@ -105,6 +127,7 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		# connections
 		self.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
 		self.outputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
+		self.outputTransformSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
 		self.leftAtlas.connect('toggled(bool)', self.onLeftEarSelection)
 		self.rightAtlas.connect('toggled(bool)', self.onRightEarSelection)
 		self.applyButton.connect('clicked(bool)', self.onApplyButton)
@@ -120,7 +143,11 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		self.onRightEarSelection()
 
 	def onSelect(self):
-		self.applyButton.enabled = self.inputSelector.currentNode() and self.outputSelector.currentNode()
+		self.applyButton.enabled = self.inputSelector.currentNode() \
+									and self.outputSelector.currentNode() \
+									and self.outputTransformSelector.currentNode()
+
+
 
 	def onLeftEarSelection(self):
 		if self.leftAtlas.isChecked() == True:
@@ -145,7 +172,8 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 			self.atlasSelection = "none"
 
 		#Run Atlas based on logic selection
-		logic.run(self.inputSelector.currentNode(), self.outputSelector.currentNode(), self.atlasSelection)
+		logic.run(self.inputSelector.currentNode(), self.outputSelector.currentNode(),
+					self.atlasSelection, self.outputTransformSelector.currentNode() )
 
 	def cleanup(self):
 		pass
@@ -192,38 +220,34 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 
 	def loadAtlasNodeAndFiducials(self, isRight,
 									atlasLocation = '/Users/JohnEniolu/Documents/AValueModuleData/1621R_20um-croppedAligned.nrrd',
-									fiducialLocation = '/User/JohnEniolu/Documents/AValueModuleData/Atlas_AValue_F.fcsv'):
+									fiducialLocation = '/Users/JohnEniolu/Documents/AValueModuleData/Atlas_AValue_F.fcsv'):
 		#create atlasnode
 		if isRight:
 			atlasNode = slicer.util.loadVolume(atlasLocation, returnNode=True)
-			atlasFiducial = slicer.util.loadFiducialList(fiducialLocation, returnNode=True)
+			atlasFiducial = slicer.util.loadMarkupsFiducialList(fiducialLocation, returnNode=True)
 			logging.info('Loaded right ear atlas')
 		else:
-			#TODO - load the left atlass
+			#TODO - load the left atlas
 			#atlasNode = slicer.util.loadVolume()
 			#atlasFiducial = slicer.util.loadFiducialList(fiducialLocation, returnNode=True)
 			logging.info('Loaded left ear atlas')
-		return atlasNode
+		return atlasNode, atlasFiducial
 
 	def loadAffineTransform(self, aTransLocation = '/Users/JohnEniolu/Documents/AValueModuleData/Atlas_to_2R_RIG.h5'):
 		#load Affine transform
 		affineTrans = slicer.util.loadTransform(aTransLocation, returnNode=True)
 		return affineTrans[1] #Return Transform only
 
-	def loadBsplineTransform(self, bTransLocation = '/Users/JohnEniolu/Documents/AValueModuleData/Atlas_to_2R_nonRIG.h5'):
-		#load BSpline transform
-		bsplineTrans = slicer.util.loadTransform(bTransLocation, returnNode=True)
-		return bsplineTrans[1] #return Transform Only
-
-	def run(self, inputVolume, outputVolume, atlasSelection):
+	def run(self, inputVolume, outputVolume, atlasSelection, outputTrans):
 		"""
 		Run the actual algorithm
 		"""
 		#check atlas selection then retrive atlas
 		if(atlasSelection != 'None'):
 			if atlasSelection == 'right':
-				self.loadedResult = self.loadAtlasNodeAndFiducials(True) #Returns tuple
-				self.atlasVolume  = self.loadedResult[1] #Retrieve atlas Volume from tuple
+				self.loadedAtlas, self.loadFid 	= self.loadAtlasNodeAndFiducials(True) #Returns tuple
+				self.atlasVolume  				= self.loadedAtlas[1] #Retrieve atlas Volume from tuple
+				self.atlasFiducial 				= self.loadFid[1]
 			elif atlasSelection == 'left':
 				self.atlasVolume = self.loadAtlasNode(False)
 			else:
@@ -236,18 +260,49 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 			return False
 		#slicer.util.saveNode(outputVolume,'/Users/JohnEniolu/Documents/AValueModuleData/outputVolume')
 
-		self.affineTransform 	= self.loadAffineTransform() #TODO - Can not load this, make it multilevel
-		self.bSplineTransform 	= self.loadBsplineTransform() #TODO - Return a BSpline Transform!!
+		self.affineTransform 	= self.loadAffineTransform() #TODO - Can not load this, make it multilevels
 
 		# Create dictionary of required CLI parameters
-		cliParams = {'fixedVolume': inputVolume.GetID(), 'movingVolume': self.atlasVolume, 'outputVolume' : outputVolume.GetID() }
-		cliParams.update({'samplingPercentage': 1, 'initialTransform' : self.affineTransform, 'outputTransform': self.bSplineTransform })
-		cliParams.update({ 'transformType': 'BSpline', 'useBSpline' : 1, 'splineGridSize': '3,3,3'})
+		#TODO - Use Landmark registration result as the "initializeTransformMode" parameter
+		cliParams = {'fixedVolume': inputVolume.GetID(), 'movingVolume': self.atlasVolume ,
+		 				#'outputVolume' : outputVolume.GetID()
+						'bsplineTransform' : outputTrans.GetID() }
+		cliParams.update({'samplingPercentage': 1, 'initialTransform' : self.affineTransform })
+		cliParams.update({ 'transformType': 'Affine,BSpline', 'splineGridSize': '3,3,3'})
 		cliParams.update({'costMetric' : 'NC' })
 
 		cliNode = slicer.cli.run(slicer.modules.brainsfit, None, cliParams, wait_for_completion=True)
 
-		#TODO - Apply resulting transform to fiducials
+		#Apply BSpline transform on A-Value Fiducials
+		self.atlasFiducial.SetAndObserveTransformNodeID(outputTrans.GetID())
+		#Harden Transform
+		slicer.vtkSlicerTransformLogic().hardenTransform(self.atlasFiducial)
+
+		#self.atlasFiducial.HardenTransform()
+		#self.atlasFiducial.UpdateScene()
+
+		#TODO Calculate New A-Value
+
+		numOfFids = self.atlasFiducial.GetNumberOfFiducials()
+		fidXYZ_RW = [0,0,0] #Round Window placeholder
+		fidXYZ_LW = [0,0,0] #Lateral Wall placeholder
+		print numOfFids
+		for index in range(numOfFids):
+			if index == 0:
+				self.atlasFiducial.GetNthFiducialPosition(index, fidXYZ_RW)
+				print fidXYZ_RW
+			else:
+				self.atlasFiducial.GetNthFiducialPosition(index, fidXYZ_LW)
+				print fidXYZ_LW
+
+		newAValue = math.sqrt(	((fidXYZ_RW[0] - fidXYZ_LW[0])**2) + \
+								((fidXYZ_RW[1] - fidXYZ_LW[1])**2) + \
+								((fidXYZ_LW[2] - fidXYZ_RW[2])**2)		)
+
+		#Display Patient ID and Estimated A Valuee
+		outputDisp = "Patient ID:\n" + inputVolume.GetName() + \
+					"\n\nEstimated A Value:\n" + format(newAValue, '0.1f') + 'mm'
+		slicer.util.infoDisplay(outputDisp)
 
 		logging.info('Processing completed')
 
