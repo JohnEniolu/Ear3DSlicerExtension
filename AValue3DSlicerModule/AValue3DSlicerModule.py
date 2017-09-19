@@ -100,8 +100,7 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		#
 		#Output Transform
 		#
-		#TODO - Create an instance of a transform Node to store transform result!!!
-
+		#
 		self.outputTransformSelector = slicer.qMRMLNodeComboBox()
 		self.outputTransformSelector.nodeTypes = ["vtkMRMLTransformNode"]
 		self.outputTransformSelector.addNode()
@@ -157,7 +156,6 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		if self.rightAtlas.isChecked() == True:
 			self.leftAtlas.setChecked(False)
 
-
 	def onApplyButton(self):
 
 		#Instantiate logic class
@@ -171,7 +169,7 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		else:
 			self.atlasSelection = "none"
 
-		#Run Atlas based on logic selection
+		#Run module logic
 		logic.run(self.inputSelector.currentNode(), self.outputSelector.currentNode(),
 					self.atlasSelection, self.outputTransformSelector.currentNode() )
 
@@ -191,6 +189,7 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 	Uses ScriptedLoadableModuleLogic base class, available at:
 	https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
 	"""
+	#Check input data is provided
 	def hasImageData(self,volumeNode):
 		"""This is an example logic method that
 		returns true if the passed in volume
@@ -204,6 +203,7 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 			return False
 		return True
 
+	#Check valid input is provided by user
 	def isValidInputOutputData(self, inputVolumeNode, outputVolumeNode):
 		"""Validates if the output is not the same as input
 		"""
@@ -218,6 +218,7 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 			return False
 		return True
 
+	#load Atlas and corresponding A-Value Fiducials
 	def loadAtlasNodeAndFiducials(self, isRight,
 									atlasLocation = '/Users/JohnEniolu/Documents/AValueModuleData/1621R_20um-croppedAligned.nrrd',
 									fiducialLocation = '/Users/JohnEniolu/Documents/AValueModuleData/Atlas_AValue_F.fcsv'):
@@ -233,11 +234,13 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 			logging.info('Loaded left ear atlas')
 		return atlasNode, atlasFiducial
 
+	#Load Affine Transform - NOTE: method not used/required
 	def loadAffineTransform(self, aTransLocation = '/Users/JohnEniolu/Documents/AValueModuleData/Atlas_to_2R_RIG.h5'):
 		#load Affine transform
 		affineTrans = slicer.util.loadTransform(aTransLocation, returnNode=True)
 		return affineTrans[1] #Return Transform only
 
+	#Automated A-value implementation
 	def run(self, inputVolume, outputVolume, atlasSelection, outputTrans):
 		"""
 		Run the actual algorithm
@@ -258,31 +261,34 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 		if not self.isValidInputOutputData(inputVolume, outputVolume):
 			slicer.util.errorDisplay('Input volume is the same as output volume. Choose a different output volume.')
 			return False
-		#slicer.util.saveNode(outputVolume,'/Users/JohnEniolu/Documents/AValueModuleData/outputVolume')
 
-		self.affineTransform 	= self.loadAffineTransform() #TODO - Can not load this, make it multilevels
+		#Set parameters and run affine registration Step 1
+		cliParamsAffine = { 'fixedVolume' : inputVolume.GetID(),
+							'movingVolume': self.atlasVolume,
+							'linearTransform' : outputTrans.GetID() }
+		cliParamsAffine.update({'samplingPercentage': 0.001,
+								'initializeTransformMode' : 'useGeometryAlign',
+								'transformType': 'Affine'})
+		cliNode = slicer.cli.run(slicer.modules.brainsfit, None, cliParamsAffine, wait_for_completion=True)
+		self.affineTransform = outputTrans.GetID() #Save Affine Transform output
 
-		# Create dictionary of required CLI parameters
+		# Set parameters and run BSpline registration Step 2
 		#TODO - Use Landmark registration result as the "initializeTransformMode" parameter
 		cliParams = {'fixedVolume': inputVolume.GetID(), 'movingVolume': self.atlasVolume ,
-		 				#'outputVolume' : outputVolume.GetID()
 						'bsplineTransform' : outputTrans.GetID() }
 		cliParams.update({'samplingPercentage': 1, 'initialTransform' : self.affineTransform })
-		cliParams.update({ 'transformType': 'Affine,BSpline', 'splineGridSize': '3,3,3'})
+		cliParams.update({'transformType': 'BSpline', 'splineGridSize': '3,3,3'})
+		cliParams.update({'numberOfIterations' : 3000, 'minimumStepLength': 0.0001, 'maximumStepLength': 0.05})
 		cliParams.update({'costMetric' : 'NC' })
-
 		cliNode = slicer.cli.run(slicer.modules.brainsfit, None, cliParams, wait_for_completion=True)
+
+
 
 		#Apply BSpline transform on A-Value Fiducials
 		self.atlasFiducial.SetAndObserveTransformNodeID(outputTrans.GetID())
-		#Harden Transform
 		slicer.vtkSlicerTransformLogic().hardenTransform(self.atlasFiducial)
 
-		#self.atlasFiducial.HardenTransform()
-		#self.atlasFiducial.UpdateScene()
-
-		#TODO Calculate New A-Value
-
+		#Calculate New A-Value
 		numOfFids = self.atlasFiducial.GetNumberOfFiducials()
 		fidXYZ_RW = [0,0,0] #Round Window placeholder
 		fidXYZ_LW = [0,0,0] #Lateral Wall placeholder
