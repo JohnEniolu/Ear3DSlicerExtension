@@ -4,6 +4,7 @@ import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
 import logging
 import math
+import time
 
 #
 # AValue3DSlicerModule
@@ -220,7 +221,7 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 
 	#load Atlas and corresponding A-Value Fiducials
 	def loadAtlasNodeAndFiducials(self, isRight,
-									atlasLocation = '/Users/JohnEniolu/Documents/AValueModuleData/1621R_20um-croppedAligned.nrrd',
+									atlasLocation = '/Users/JohnEniolu/Documents/AValueModuleData/initialAtlasR.nrrd',
 									fiducialLocation = '/Users/JohnEniolu/Documents/AValueModuleData/Atlas_AValue_F.fcsv'):
 		#create atlasnode
 		if isRight:
@@ -239,6 +240,70 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 		#load Affine transform
 		affineTrans = slicer.util.loadTransform(aTransLocation, returnNode=True)
 		return affineTrans[1] #Return Transform only
+
+	#Load atlas Landmarks - TODO: specify left or right landmark required/requested
+	def loadAtlasLandmark(self, landmarkLocation = '/Users/JohnEniolu/Documents/AValueModuleData/initialLandmarkREG.fscv'):
+		#Load fiducial landmark for initial atlas landmark registration
+		landmarkFid = slicer.util.loadFiducialList(landmarkLocation, returnNode=True)
+		logging.info('loading landmarks')
+		return landmarkFid[1]#Return fiducial only
+
+	def printStatus(self):
+		print('Fiduical placed!!')
+		return True
+
+	#Perform initial landmark registration for orientation
+	def fiducialRegistration(self, atlas, rigTrans, inputVolume):
+		#TODO - implement fiducial registration
+
+		placeModePersistence = 0 # No persistence placing
+		#movingLandmarkNode  = slicer.mrmlScene.GetNodeByID("vtkMRMLMarkupsFiducialNodeCochlea")
+		#movingLandmarkNode.SetActivePlaceNodeID("vtkMRMLMarkupsFiducialNodeCochlea") #Create Fiducial Markup
+
+
+		#Place 4 Fiducial for Cochlea Registration
+
+		#Create node and add to scene
+		#placedLandmarkNode = slicer.vtkMRMLMarkupsFiducialNode()
+		#slicer.mrmlScene.AddNode(placedLandmarkNode)
+		#placedLandmarks = slicer.modules.markups.logic().GetActiveListID() #retrieve user placed landmark
+
+		#TODO - Figure a way to retrieve/poll user for the required landmarks for this registration!!***
+		logging.info('start placing markups')
+
+		# interactionNode = slicer.app.applicationLogic().GetInteractionNode()
+		# selectionNode = slicer.app.applicationLogic().GetSelectionNode()
+		# selectionNode.SetReferenceActivePlaceNodeClassName("vtkMRMLMarkupsFiducialNode")
+		# placedLandmarkNode = slicer.vtkMRMLMarkupsFiducialNode()
+		# slicer.mrmlScene.AddNode(placedLandmarkNode)
+		# placedLandmarkNode.CreateDefaultDisplayNodes()
+		# selectionNode.SetActivePlaceNodeID(placedLandmarkNode.GetID())
+		# interactionNode.SetCurrentInteractionMode(interactionNode.Place)
+		#interactionNode.AddObserver('PointClickedEvent', self.printStatus())
+		#slicer.util.delayDisplay('Place oval window fiducial, then press okay.', 0)
+
+		logging.info('done placing markups')
+
+		#placedLandmarks = slicer.modules.markups.logic().GetActiveListID() #retrieve user placed landmark
+		fixedLandmarkNode = self.loadAtlasLandmark()
+
+		cliParamsFidReg = {'fixedPoints': fixedLandmarkNode,
+						   	'movingPoints' : placedLandmarkNode,
+							'transformType' : 'Rigid',
+							'saveTransform' : rigTrans.GetID() }
+
+		cliRigTrans = slicer.cli.run(slicer.modules.fiducialregistration, None,
+									  cliParamsFidReg, wait_for_completion=True )
+
+		#Apply Rigid transform on inputvolume
+		#cliRegVolume = inputVolume.SetAndObserveTransformNodeID(outputTrans.GetID())
+		#slicer.vtkSlicerTransformLogic().hardenTransform(self.atlasFiducial)
+		#return cliRegVolume
+		return cliRigTrans
+
+	def cropVolume(self, atlas, volume):
+		#TODO - Crop volume
+		return cropVolume
 
 	#Automated A-value implementation
 	def run(self, inputVolume, outputVolume, atlasSelection, outputTrans):
@@ -262,7 +327,17 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 			slicer.util.errorDisplay('Input volume is the same as output volume. Choose a different output volume.')
 			return False
 
-		#Set parameters and run affine registration Step 1
+
+		#Run initial Landmark (Registration) Transformation Step 1
+		#self.rigidInputVolume = fiducialRegistration( self.atlasVolume, outputTrans,
+													  #inputVolume )
+		self.rigTrans = self.fiducialRegistration( self.atlasVolume, outputTrans,
+												inputVolume )
+
+		#TODO - replace input volume with rigidInputVolume OR make output of fiducialRegistration
+				# the initialTransfrom for the affine registration below!?!!
+
+		#Set parameters and run affine registration Step 2
 		cliParamsAffine = { 'fixedVolume' : inputVolume.GetID(),
 							'movingVolume': self.atlasVolume,
 							'linearTransform' : outputTrans.GetID() }
@@ -272,7 +347,7 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 		cliNode = slicer.cli.run(slicer.modules.brainsfit, None, cliParamsAffine, wait_for_completion=True)
 		self.affineTransform = outputTrans.GetID() #Save Affine Transform output
 
-		# Set parameters and run BSpline registration Step 2
+		# Set parameters and run BSpline registration Step 3
 		#TODO - Use Landmark registration result as the "initializeTransformMode" parameter
 		cliParams = {'fixedVolume': inputVolume.GetID(), 'movingVolume': self.atlasVolume ,
 						'bsplineTransform' : outputTrans.GetID() }
