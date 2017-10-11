@@ -49,22 +49,6 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 
 		# Layout within the input collapsible button
 		parametersFormLayout = qt.QFormLayout(parametersCollapsibleButton)
-
-		#
-		# input volume selector
-		#
-		self.inputSelector = slicer.qMRMLNodeComboBox()
-		self.inputSelector.nodeTypes = ["vtkMRMLScalarVolumeNode"]
-		self.inputSelector.selectNodeUponCreation = True
-		self.inputSelector.addEnabled = False
-		self.inputSelector.removeEnabled = False
-		self.inputSelector.noneEnabled = False
-		self.inputSelector.showHidden = False
-		self.inputSelector.showChildNodeTypes = False
-		self.inputSelector.setMRMLScene( slicer.mrmlScene )
-		self.inputSelector.setToolTip( "select input image." )
-		parametersFormLayout.addRow("Input Volume: ", self.inputSelector)
-
 		#
 		# atlas selection checkbox
 		#
@@ -82,6 +66,37 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		parametersFormLayout.addRow("Atlas Selection: ", earSelector)
 
 		#
+		#Load Atlas Button
+		#
+		self.loadAtlasButton = qt.QPushButton("Load Atlas")
+		self.loadAtlasButton.toolTip = "Load Atlas"
+		self.loadAtlasButton.enabled = False
+		parametersFormLayout.addRow(self.loadAtlasButton)
+
+		#
+		# input volume selector
+		#
+		self.inputSelector = slicer.qMRMLNodeComboBox()
+		self.inputSelector.nodeTypes = ["vtkMRMLScalarVolumeNode"]
+		self.inputSelector.selectNodeUponCreation = True
+		self.inputSelector.addEnabled = False
+		self.inputSelector.removeEnabled = False
+		self.inputSelector.noneEnabled = True
+		self.inputSelector.showHidden = False
+		self.inputSelector.showChildNodeTypes = False
+		self.inputSelector.setMRMLScene( slicer.mrmlScene )
+		self.inputSelector.setToolTip( "select input image." )
+		parametersFormLayout.addRow("Input Volume: ", self.inputSelector)
+
+		#
+		# Align Volumes Button
+		#
+		self.alignButton = qt.QPushButton("Align Volume")
+		self.alignButton.toolTip = "Orient input volume to spatial region of Atlas"
+		self.alignButton.enabled = False
+		parametersFormLayout.addRow(self.alignButton)
+
+		#
 		# output volume selector
 		#
 		self.outputSelector = slicer.qMRMLNodeComboBox()
@@ -97,10 +112,8 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		self.outputSelector.setToolTip( "select output volume " )
 		parametersFormLayout.addRow("Output Atlas Volume: ", self.outputSelector)
 
-
 		#
 		#Output Transform
-		#
 		#
 		self.outputTransformSelector = slicer.qMRMLNodeComboBox()
 		self.outputTransformSelector.nodeTypes = ["vtkMRMLTransformNode"]
@@ -117,7 +130,7 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		parametersFormLayout.addRow("Output BSlpine Transform: ", self.outputTransformSelector)
 
 		#
-		# Apply Button
+		# Calculate A-Value Button
 		#
 		self.applyButton = qt.QPushButton("Calculate A-Value")
 		self.applyButton.toolTip = "Run the algorithm."
@@ -125,11 +138,13 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		parametersFormLayout.addRow(self.applyButton)
 
 		# connections
-		self.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
-		self.outputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
-		self.outputTransformSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
 		self.leftAtlas.connect('toggled(bool)', self.onLeftEarSelection)
 		self.rightAtlas.connect('toggled(bool)', self.onRightEarSelection)
+		self.loadAtlasButton.connect('clicked(bool)', self.onLoadAtlasButton)
+		self.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
+		self.alignButton.connect('clicked(bool)', self.onAlignButton)
+		self.outputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
+		self.outputTransformSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
 		self.applyButton.connect('clicked(bool)', self.onApplyButton)
 
 		# Add vertical spacer
@@ -139,27 +154,32 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		self.onSelect()
 
 		# Refresh Ear Selection checkboxes state
+		self.AtlasLoaded = False
 		self.onLeftEarSelection()
 		self.onRightEarSelection()
 
 	def onSelect(self):
+
+		# update status of apply Button
+		self.alignButton.enabled = self.inputSelector.currentNode()
+									#and self.AtlasLoaded
 		self.applyButton.enabled = self.inputSelector.currentNode() \
 									and self.outputSelector.currentNode() \
 									and self.outputTransformSelector.currentNode()
 
 
-
 	def onLeftEarSelection(self):
 		if self.leftAtlas.isChecked() == True:
 			self.rightAtlas.setChecked(False)
+			self.loadAtlasButton.enabled = True
 
 	def onRightEarSelection(self):
 		if self.rightAtlas.isChecked() == True:
 			self.leftAtlas.setChecked(False)
+			self.loadAtlasButton.enabled = True
 
-	def onApplyButton(self):
 
-		#Instantiate logic class
+	def onLoadAtlasButton(self):
 		logic = AValue3DSlicerModuleLogic()
 
 		#Check atlas selection
@@ -169,6 +189,28 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 			self.atlasSelection = "left"
 		else:
 			self.atlasSelection = "none"
+
+		self.AtlasLoaded = logic.runAtlasLoad(self.atlasSelection)
+
+
+	def onAlignButton(self):
+		#TODO - Interactive obtain fiducials from user to use in rigid (landmark) registration
+		logging.info('TODO - Align Button Code')
+
+
+
+	def onApplyButton(self):
+
+		#Instantiate logic class
+		logic = AValue3DSlicerModuleLogic()
+
+		#Check atlas selection
+		# if(self.rightAtlas.isChecked()):
+		# 	self.atlasSelection = "right"
+		# elif(self.leftAtlas.isChecked()):
+		# 	self.atlasSelection = "left"
+		# else:
+		# 	self.atlasSelection = "none"
 
 		#Run module logic
 		logic.run(self.inputSelector.currentNode(), self.outputSelector.currentNode(),
@@ -220,6 +262,7 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 		return True
 
 	#load Atlas and corresponding A-Value Fiducials
+	#TODO -Change file location to server location
 	def loadAtlasNodeAndFiducials(self, isRight,
 									atlasLocation = '/Users/JohnEniolu/Documents/AValueModuleData/initialAtlasR.nrrd',
 									fiducialLocation = '/Users/JohnEniolu/Documents/AValueModuleData/Atlas_AValue_F.fcsv'):
@@ -242,6 +285,7 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 		return affineTrans[1] #Return Transform only
 
 	#Load atlas Landmarks - TODO: specify left or right landmark required/requested
+						   #TODO: Change file location to server location
 	def loadAtlasLandmark(self, landmarkLocation = '/Users/JohnEniolu/Documents/AValueModuleData/initialLandmarkREG.fscv'):
 		#Load fiducial landmark for initial atlas landmark registration
 		landmarkFid = slicer.util.loadFiducialList(landmarkLocation, returnNode=True)
@@ -305,28 +349,31 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 		#TODO - Crop volume
 		return cropVolume
 
-	#Automated A-value implementation
-	def run(self, inputVolume, outputVolume, atlasSelection, outputTrans):
-		"""
-		Run the actual algorithm
-		"""
+	def runAtlasLoad(self, atlasSelection):
+
 		#check atlas selection then retrive atlas
 		if(atlasSelection != 'None'):
 			if atlasSelection == 'right':
 				self.loadedAtlas, self.loadFid 	= self.loadAtlasNodeAndFiducials(True) #Returns tuple
 				self.atlasVolume  				= self.loadedAtlas[1] #Retrieve atlas Volume from tuple
 				self.atlasFiducial 				= self.loadFid[1]
+				return True
 			elif atlasSelection == 'left':
 				self.atlasVolume = self.loadAtlasNode(False)
+				return True
 			else:
 				slicer.util.errorDisplay('Atlas not selected. Choose right or left ear atlas')
 				return False
 
+	#Automated A-value implementation
+	def run(self, inputVolume, outputVolume, atlasSelection, outputTrans):
+		"""
+		Run the actual algorithm
+		"""
 		#check appropriate volume is selected
 		if not self.isValidInputOutputData(inputVolume, outputVolume):
 			slicer.util.errorDisplay('Input volume is the same as output volume. Choose a different output volume.')
 			return False
-
 
 		#Run initial Landmark (Registration) Transformation Step 1
 		#self.rigidInputVolume = fiducialRegistration( self.atlasVolume, outputTrans,
