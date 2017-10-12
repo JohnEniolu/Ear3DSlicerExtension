@@ -20,12 +20,11 @@ class AValue3DSlicerModule(ScriptedLoadableModule):
 		self.parent.dependencies = []
 		self.parent.contributors = ["John Eniolu (HML & SKA Lab.)"] # replace with "Firstname Lastname (Organization)"
 		self.parent.helpText = """
-		This is an example of scripted loadable module bundled in an extension.
-		It performs a simple thresholding on the input volume and optionally captures a screenshot."""
+		This a scripted loadable module bundled in an extension.
+		It calculates the A-value, used to estimate Cochlear Duct Length."""
 		self.parent.helpText += self.getDefaultModuleDocumentationLink()
-		self.parent.acknowledgementText = """This file was originally developed by Jean-Christophe Fillion-Robin,
-		Kitware Inc.and Steve Pieper, Isomics, Inc.
-		and was partially funded by NIH grant 3P41RR013218-12S1.""" # replace with organization, grant and thanks.
+		self.parent.acknowledgementText = """This process was developed at
+		Western University in the Auditory Biophyiscs Lab """
 
 #
 # AValue3DSlicerModuleWidget
@@ -44,7 +43,7 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		# PARAMETER AREA
 		#
 		parametersCollapsibleButton = ctk.ctkCollapsibleButton()
-		parametersCollapsibleButton.text = "Parameters"
+		parametersCollapsibleButton.text = "Procedure"
 		self.layout.addWidget(parametersCollapsibleButton)
 
 		# Layout within the input collapsible button
@@ -89,12 +88,20 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		parametersFormLayout.addRow("Input Volume: ", self.inputSelector)
 
 		#
-		# Align Volumes Button
+		# Place Fiduicals & Align Volumes Button
 		#
-		self.alignButton = qt.QPushButton("Align Volume")
+		self.fidButton			= qt.QPushButton("Place Fiduicals")
+		self.fidButton.toolTip 	= "Place fiducials for volume alignment"
+		self.fidButton.enabled	= False
+
+		self.alignButton 	= qt.QPushButton("Align Volume")
 		self.alignButton.toolTip = "Orient input volume to spatial region of Atlas"
 		self.alignButton.enabled = False
-		parametersFormLayout.addRow(self.alignButton)
+
+		imageAlignment = qt.QHBoxLayout()
+		imageAlignment.addWidget(self.fidButton)
+		imageAlignment.addWidget(self.alignButton)
+		parametersFormLayout.addRow("Image Alignment: ", imageAlignment)
 
 		#
 		# output volume selector
@@ -142,6 +149,7 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		self.rightAtlas.connect('toggled(bool)', self.onRightEarSelection)
 		self.loadAtlasButton.connect('clicked(bool)', self.onLoadAtlasButton)
 		self.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
+		self.fidButton.connect('clicked(bool)', self.onFidButton)
 		self.alignButton.connect('clicked(bool)', self.onAlignButton)
 		self.outputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
 		self.outputTransformSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
@@ -161,7 +169,7 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 	def onSelect(self):
 
 		# update status of apply Button
-		self.alignButton.enabled = self.inputSelector.currentNode()
+		self.fidButton.enabled = self.inputSelector.currentNode()
 									#and self.AtlasLoaded
 		self.applyButton.enabled = self.inputSelector.currentNode() \
 									and self.outputSelector.currentNode() \
@@ -192,25 +200,51 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 
 		self.AtlasLoaded = logic.runAtlasLoad(self.atlasSelection)
 
+	def onFidButton(self):
+
+		logging.info('Fiducial button selected')
+
+		#Creat Markup node & add to scene
+		self.placedLandmarkNode = slicer.vtkMRMLMarkupsFiducialNode()
+		slicer.mrmlScene.AddNode(self.placedLandmarkNode)
+
+		#Fiduical Placement Widget
+		fiducialWidget = slicer.qSlicerMarkupsPlaceWidget()
+		fiducialWidget.buttonsVisible = False
+		fiducialWidget.placeButton().show()
+		fiducialWidget.setMRMLScene(slicer.mrmlScene)
+		fiducialWidget.setCurrentNode(self.placedLandmarkNode)
+		fiducialWidget.placeMultipleMarkups = slicer.qSlicerMarkupsPlaceWidget.ForcePlaceSingleMarkup
+
+		#Enable alignment option
+		self.alignButton.enabled = True
+
+		#Show fiducial placement Widget
+		fiducialWidget.show()
+
+		logging.info('Fiduical widget displayed')
 
 	def onAlignButton(self):
+		#NOTE - METHOD NOT CURRENTLY FULLY FUNCTIONAL!!
+
 		#TODO - Interactive obtain fiducials from user to use in rigid (landmark) registration
 		logging.info('TODO - Align Button Code')
 
+		self.LandmarkTrans = slicer.vtkMRMLTransformNode()
+		slicer.mrmlScene.AddNode(self.LandmarkTrans)
+
+		logic = AValue3DSlicerModuleLogic
+
+		if(self.placedLandmarkNode.GetNumberOfFiducials() == 4):
+			self.LandmarkTrans = logic.runFiducialRegistration(self.LandmarkTrans, self.placedLandmarkNode)
+		else:
+			slicer.util.infoDisplay("4 Fiducials required for registration") #TODO - add information to help user.
 
 
 	def onApplyButton(self):
 
 		#Instantiate logic class
 		logic = AValue3DSlicerModuleLogic()
-
-		#Check atlas selection
-		# if(self.rightAtlas.isChecked()):
-		# 	self.atlasSelection = "right"
-		# elif(self.leftAtlas.isChecked()):
-		# 	self.atlasSelection = "left"
-		# else:
-		# 	self.atlasSelection = "none"
 
 		#Run module logic
 		logic.run(self.inputSelector.currentNode(), self.outputSelector.currentNode(),
@@ -292,43 +326,39 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 		logging.info('loading landmarks')
 		return landmarkFid[1]#Return fiducial only
 
+	# def runPlaceFiducials(self, FiducialWidget, FiducialNode):
+	#
+	# 	#Widget used to place fiducial
+	# 	FiducialWidget.buttonsVisible = False
+	# 	FiducialWidget.placeButton().show()
+	# 	FiducialWidget.setMRMLScene(slicer.mrmlScene)
+	# 	FiducialWidget.setCurrentNode(FiducialNode)
+	# 	FiducialWidget.placeMultipleMarkups = slicer.qSlicerMarkupsPlaceWidget.ForcePlaceSingleMarkup
+	# 	FiducialWidget.show()
+
 	def printStatus(self):
 		print('Fiduical placed!!')
 		return True
 
+	def runAtlasLoad(self, atlasSelection):
+		#check atlas selection then retrive atlas
+		if(atlasSelection != 'None'):
+			if atlasSelection == 'right':
+				self.loadedAtlas, self.loadFid 	= self.loadAtlasNodeAndFiducials(True) #Returns tuple
+				self.atlasVolume  				= self.loadedAtlas[1] #Retrieve atlas Volume from tuple
+				self.atlasFiducial 				= self.loadFid[1]
+				return True
+			elif atlasSelection == 'left':
+				self.atlasVolume = self.loadAtlasNode(False)
+				return True
+			else:
+				slicer.util.errorDisplay('Atlas not selected. Choose right or left ear atlas')
+				return False
+
 	#Perform initial landmark registration for orientation
-	def fiducialRegistration(self, atlas, rigTrans, inputVolume):
-		#TODO - implement fiducial registration
-
-		placeModePersistence = 0 # No persistence placing
-		#movingLandmarkNode  = slicer.mrmlScene.GetNodeByID("vtkMRMLMarkupsFiducialNodeCochlea")
-		#movingLandmarkNode.SetActivePlaceNodeID("vtkMRMLMarkupsFiducialNodeCochlea") #Create Fiducial Markup
-
-
-		#Place 4 Fiducial for Cochlea Registration
-
-		#Create node and add to scene
-		#placedLandmarkNode = slicer.vtkMRMLMarkupsFiducialNode()
-		#slicer.mrmlScene.AddNode(placedLandmarkNode)
-		#placedLandmarks = slicer.modules.markups.logic().GetActiveListID() #retrieve user placed landmark
-
-		#TODO - Figure a way to retrieve/poll user for the required landmarks for this registration!!***
-		logging.info('start placing markups')
-
-		# interactionNode = slicer.app.applicationLogic().GetInteractionNode()
-		# selectionNode = slicer.app.applicationLogic().GetSelectionNode()
-		# selectionNode.SetReferenceActivePlaceNodeClassName("vtkMRMLMarkupsFiducialNode")
-		# placedLandmarkNode = slicer.vtkMRMLMarkupsFiducialNode()
-		# slicer.mrmlScene.AddNode(placedLandmarkNode)
-		# placedLandmarkNode.CreateDefaultDisplayNodes()
-		# selectionNode.SetActivePlaceNodeID(placedLandmarkNode.GetID())
-		# interactionNode.SetCurrentInteractionMode(interactionNode.Place)
-		#interactionNode.AddObserver('PointClickedEvent', self.printStatus())
-		#slicer.util.delayDisplay('Place oval window fiducial, then press okay.', 0)
-
-		logging.info('done placing markups')
-
-		#placedLandmarks = slicer.modules.markups.logic().GetActiveListID() #retrieve user placed landmark
+	
+	def runFiducialRegistration(self, rigTrans, placedLandmarkNode ):
+		#TODO - finish implement fiducial registration
 		fixedLandmarkNode = self.loadAtlasLandmark()
 
 		cliParamsFidReg = {'fixedPoints': fixedLandmarkNode,
@@ -345,25 +375,10 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 		#return cliRegVolume
 		return cliRigTrans
 
-	def cropVolume(self, atlas, volume):
+	def runCropVolume(self, atlas, volume):
 		#TODO - Crop volume
 		return cropVolume
 
-	def runAtlasLoad(self, atlasSelection):
-
-		#check atlas selection then retrive atlas
-		if(atlasSelection != 'None'):
-			if atlasSelection == 'right':
-				self.loadedAtlas, self.loadFid 	= self.loadAtlasNodeAndFiducials(True) #Returns tuple
-				self.atlasVolume  				= self.loadedAtlas[1] #Retrieve atlas Volume from tuple
-				self.atlasFiducial 				= self.loadFid[1]
-				return True
-			elif atlasSelection == 'left':
-				self.atlasVolume = self.loadAtlasNode(False)
-				return True
-			else:
-				slicer.util.errorDisplay('Atlas not selected. Choose right or left ear atlas')
-				return False
 
 	#Automated A-value implementation
 	def run(self, inputVolume, outputVolume, atlasSelection, outputTrans):
