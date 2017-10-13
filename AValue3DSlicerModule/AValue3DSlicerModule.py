@@ -229,7 +229,7 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		self.alignButton.enabled = True
 
 	def onAlignButton(self):
-		#TODO - Interactive obtain fiducials from user to use in rigid (landmark) registration
+		
 		logging.info('TODO - Align Button Code')
 
 		self.LandmarkTrans = slicer.vtkMRMLTransformNode()
@@ -238,7 +238,7 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		logic = AValue3DSlicerModuleLogic()
 
 		if(self.placedLandmarkNode.GetNumberOfFiducials() == 4):
-			self.LandmarkTrans = logic.runFiducialRegistration(self.LandmarkTrans, self.placedLandmarkNode)
+			logic.runFiducialRegistration(self.LandmarkTrans, self.placedLandmarkNode)
 		else:
 			slicer.util.infoDisplay("4 Fiducials required for registration") #TODO - add appropriate information to help user!
 
@@ -366,7 +366,7 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 		cliRigTrans = slicer.cli.run(slicer.modules.fiducialregistration, None,
 									  cliParamsFidReg, wait_for_completion=True )
 
-		return cliRigTrans
+		#return cliRigTrans
 
 	def runCropVolume(self, atlas, volume):
 		#TODO - Crop volume
@@ -374,8 +374,7 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 
 	#Automated A-value implementation
 
-	#TODO - FIX initial Transform issue for brainsfit registration
-		# - Checkout earlier version where this was functional
+	#TODO - confirm difference between RIG & AFFINE transforms
 	def run(self, inputVolume, outputVolume, atlasVolume, initialTrans, outputTrans, atlasFid):
 		"""
 		Run the actual algorithm
@@ -385,6 +384,8 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 			slicer.util.errorDisplay('Input volume is the same as output volume. Choose a different output volume.')
 			return False
 
+		logging.info('.....Printing Initial Transform....')
+		logging.info(initialTrans)
 		#Create intermediate linear transform node
 		self.linearTrans = slicer.vtkMRMLTransformNode()
 		slicer.mrmlScene.AddNode(self.linearTrans)
@@ -396,7 +397,10 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 		cliParamsAffine.update({'samplingPercentage': 0.001,
 								'initialTransform' 	: initialTrans.GetID(),
 								'transformType'		: 'Affine'})
-		cliAffineTransNode = slicer.cli.run(slicer.modules.brainsfit, None, cliParamsAffine, wait_for_completion=True)
+		cliAffineTransREG = slicer.cli.run(slicer.modules.brainsfit, None, cliParamsAffine, wait_for_completion=True)
+
+		logging.info('....Printing Affine Transform....')
+		logging.info(self.linearTrans)
 
 		#self.affineTransform = outputTrans.GetID() #Save Affine Transform output
 		#slicer.mrmlScene.AddNode(self.linearTrans)
@@ -404,11 +408,15 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 		# Set parameters and run BSpline registration Step 2
 		cliParams = {'fixedVolume': inputVolume.GetID(), 'movingVolume': atlasVolume.GetID(),
 						'bsplineTransform' : outputTrans.GetID() }
-		cliParams.update({'samplingPercentage': 1, 'initialTransform' : cliAffineTransNode.GetID() })
+		cliParams.update({'samplingPercentage': 1, 'initialTransform' : self.linearTrans.GetID() })
 		cliParams.update({'transformType': 'BSpline', 'splineGridSize': '3,3,3'})
 		cliParams.update({'numberOfIterations' : 3000, 'minimumStepLength': 0.0001, 'maximumStepLength': 0.05})
 		cliParams.update({'costMetric' : 'NC' })
-		cliBSplineTransNode = slicer.cli.run(slicer.modules.brainsfit, None, cliParams, wait_for_completion=True)
+		cliBSplineREG = slicer.cli.run(slicer.modules.brainsfit, None, cliParams, wait_for_completion=True)
+
+
+		logging.info('....Printing BSpline Transform....')
+		logging.info(outputTrans)
 
 		#Apply BSpline transform on A-Value Fiducials
 		atlasFid.SetAndObserveTransformNodeID(outputTrans.GetID())
