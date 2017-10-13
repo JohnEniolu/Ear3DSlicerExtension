@@ -123,7 +123,7 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		#Output Transform
 		#
 		self.outputTransformSelector = slicer.qMRMLNodeComboBox()
-		self.outputTransformSelector.nodeTypes = ["vtkMRMLTransformNode"]
+		self.outputTransformSelector.nodeTypes = ["vtkMRMLBSplineTransformNode"]
 		self.outputTransformSelector.addNode()
 		self.outputTransformSelector.selectNodeUponCreation = True
 		self.outputTransformSelector.addEnabled = True
@@ -162,9 +162,13 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		self.onSelect()
 
 		# Refresh Ear Selection checkboxes state
-		self.AtlasLoaded = False
+		#self.AtlasLoaded = False
 		self.onLeftEarSelection()
 		self.onRightEarSelection()
+
+		#initialize placed landmark node & respective transform node
+		#self.placedLandmarkNode = slicer.vtkMRMLMarkupsFiducialNode()
+		#self.LandmarkTrans 		= slicer.vtkMRMLTransformNode()
 
 	def onSelect(self):
 
@@ -175,7 +179,6 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 									and self.outputSelector.currentNode() \
 									and self.outputTransformSelector.currentNode()
 
-
 	def onLeftEarSelection(self):
 		if self.leftAtlas.isChecked() == True:
 			self.rightAtlas.setChecked(False)
@@ -185,7 +188,6 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		if self.rightAtlas.isChecked() == True:
 			self.leftAtlas.setChecked(False)
 			self.loadAtlasButton.enabled = True
-
 
 	def onLoadAtlasButton(self):
 		logic = AValue3DSlicerModuleLogic()
@@ -198,7 +200,7 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		else:
 			self.atlasSelection = "none"
 
-		self.AtlasLoaded = logic.runAtlasLoad(self.atlasSelection)
+		self.AtlasLoaded, self.atlasVolume, self.atlasFid = logic.runAtlasLoad(self.atlasSelection)
 
 	def onFidButton(self):
 
@@ -209,37 +211,36 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		slicer.mrmlScene.AddNode(self.placedLandmarkNode)
 
 		#Fiduical Placement Widget
-		fiducialWidget = slicer.qSlicerMarkupsPlaceWidget()
-		fiducialWidget.buttonsVisible = False
-		fiducialWidget.placeButton().show()
-		fiducialWidget.setMRMLScene(slicer.mrmlScene)
-		fiducialWidget.setCurrentNode(self.placedLandmarkNode)
-		fiducialWidget.placeMultipleMarkups = slicer.qSlicerMarkupsPlaceWidget.ForcePlaceSingleMarkup
+		self.fiducialWidget = slicer.qSlicerMarkupsPlaceWidget()
+		self.fiducialWidget.buttonsVisible = False
+		self.fiducialWidget.placeButton().show()
+		self.fiducialWidget.setMRMLScene(slicer.mrmlScene)
+		self.fiducialWidget.setCurrentNode(self.placedLandmarkNode)
+		self.fiducialWidget.placeMultipleMarkups = slicer.qSlicerMarkupsPlaceWidget.ForcePlaceSingleMarkup
+
+		#Show fiducial placement Widget
+		self.fiducialWidget.show()
+		#Delay to ensure Widget Appears
+		slicer.util.infoDisplay("Place the following fiducials in order:\n\n" +
+		 						"- Oval Window\n- Cochlear Nerve\n- Apex\n- Round Window\n\n"+
+								"Press okay when ready to begin" )
 
 		#Enable alignment option
 		self.alignButton.enabled = True
 
-		#Show fiducial placement Widget
-		fiducialWidget.show()
-
-		logging.info('Fiduical widget displayed')
-
 	def onAlignButton(self):
-		#NOTE - METHOD NOT CURRENTLY FULLY FUNCTIONAL!!
-
 		#TODO - Interactive obtain fiducials from user to use in rigid (landmark) registration
 		logging.info('TODO - Align Button Code')
 
 		self.LandmarkTrans = slicer.vtkMRMLTransformNode()
 		slicer.mrmlScene.AddNode(self.LandmarkTrans)
 
-		logic = AValue3DSlicerModuleLogic
+		logic = AValue3DSlicerModuleLogic()
 
 		if(self.placedLandmarkNode.GetNumberOfFiducials() == 4):
 			self.LandmarkTrans = logic.runFiducialRegistration(self.LandmarkTrans, self.placedLandmarkNode)
 		else:
-			slicer.util.infoDisplay("4 Fiducials required for registration") #TODO - add information to help user.
-
+			slicer.util.infoDisplay("4 Fiducials required for registration") #TODO - add appropriate information to help user!
 
 	def onApplyButton(self):
 
@@ -247,8 +248,9 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		logic = AValue3DSlicerModuleLogic()
 
 		#Run module logic
-		logic.run(self.inputSelector.currentNode(), self.outputSelector.currentNode(),
-					self.atlasSelection, self.outputTransformSelector.currentNode() )
+		logic.run(	self.inputSelector.currentNode(), self.outputSelector.currentNode(),
+					self.atlasVolume, self.LandmarkTrans,
+					self.outputTransformSelector.currentNode(), self.atlasFid )
 
 	def cleanup(self):
 		pass
@@ -300,6 +302,8 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 	def loadAtlasNodeAndFiducials(self, isRight,
 									atlasLocation = '/Users/JohnEniolu/Documents/AValueModuleData/initialAtlasR.nrrd',
 									fiducialLocation = '/Users/JohnEniolu/Documents/AValueModuleData/Atlas_AValue_F.fcsv'):
+
+		#TODO - Make A-Value fiducials not visible in GUI
 		#create atlasnode
 		if isRight:
 			atlasNode = slicer.util.loadVolume(atlasLocation, returnNode=True)
@@ -320,34 +324,27 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 
 	#Load atlas Landmarks - TODO: specify left or right landmark required/requested
 						   #TODO: Change file location to server location
-	def loadAtlasLandmark(self, landmarkLocation = '/Users/JohnEniolu/Documents/AValueModuleData/initialLandmarkREG.fscv'):
+	def loadAtlasLandmark(self, landmarkLocation = '/Users/JohnEniolu/Documents/AValueModuleData/initialLandmarkREG.fcsv'):
 		#Load fiducial landmark for initial atlas landmark registration
-		landmarkFid = slicer.util.loadFiducialList(landmarkLocation, returnNode=True)
+		landmarkFid = slicer.util.loadMarkupsFiducialList(landmarkLocation, returnNode=True)
 		logging.info('loading landmarks')
 		return landmarkFid[1]#Return fiducial only
-
-	# def runPlaceFiducials(self, FiducialWidget, FiducialNode):
-	#
-	# 	#Widget used to place fiducial
-	# 	FiducialWidget.buttonsVisible = False
-	# 	FiducialWidget.placeButton().show()
-	# 	FiducialWidget.setMRMLScene(slicer.mrmlScene)
-	# 	FiducialWidget.setCurrentNode(FiducialNode)
-	# 	FiducialWidget.placeMultipleMarkups = slicer.qSlicerMarkupsPlaceWidget.ForcePlaceSingleMarkup
-	# 	FiducialWidget.show()
 
 	def printStatus(self):
 		print('Fiduical placed!!')
 		return True
 
 	def runAtlasLoad(self, atlasSelection):
+
+		#TODO - Make A-Value fiducials not visible in GUI
+
 		#check atlas selection then retrive atlas
 		if(atlasSelection != 'None'):
 			if atlasSelection == 'right':
 				self.loadedAtlas, self.loadFid 	= self.loadAtlasNodeAndFiducials(True) #Returns tuple
 				self.atlasVolume  				= self.loadedAtlas[1] #Retrieve atlas Volume from tuple
 				self.atlasFiducial 				= self.loadFid[1]
-				return True
+				return True, self.atlasVolume, self.atlasFiducial
 			elif atlasSelection == 'left':
 				self.atlasVolume = self.loadAtlasNode(False)
 				return True
@@ -355,33 +352,31 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 				slicer.util.errorDisplay('Atlas not selected. Choose right or left ear atlas')
 				return False
 
-	#Perform initial landmark registration for orientation
-	
 	def runFiducialRegistration(self, rigTrans, placedLandmarkNode ):
-		#TODO - finish implement fiducial registration
+
+		#retrive fixed landmarks
 		fixedLandmarkNode = self.loadAtlasLandmark()
 
-		cliParamsFidReg = {'fixedPoints': fixedLandmarkNode,
-						   	'movingPoints' : placedLandmarkNode,
-							'transformType' : 'Rigid',
-							'saveTransform' : rigTrans.GetID() }
+		#Setup and Run Landmark Registration
+		cliParamsFidReg = {	'fixedLandmarks'	: fixedLandmarkNode.GetID(),
+						   	'movingLandmarks' 	: placedLandmarkNode.GetID(),
+							'transformType' 	: 'Rigid',
+							'saveTransform' 	: rigTrans.GetID() }
 
 		cliRigTrans = slicer.cli.run(slicer.modules.fiducialregistration, None,
 									  cliParamsFidReg, wait_for_completion=True )
 
-		#Apply Rigid transform on inputvolume
-		#cliRegVolume = inputVolume.SetAndObserveTransformNodeID(outputTrans.GetID())
-		#slicer.vtkSlicerTransformLogic().hardenTransform(self.atlasFiducial)
-		#return cliRegVolume
 		return cliRigTrans
 
 	def runCropVolume(self, atlas, volume):
 		#TODO - Crop volume
 		return cropVolume
 
-
 	#Automated A-value implementation
-	def run(self, inputVolume, outputVolume, atlasSelection, outputTrans):
+
+	#TODO - FIX initial Transform issue for brainsfit registration
+		# - Checkout earlier version where this was functional
+	def run(self, inputVolume, outputVolume, atlasVolume, initialTrans, outputTrans, atlasFid):
 		"""
 		Run the actual algorithm
 		"""
@@ -390,52 +385,46 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 			slicer.util.errorDisplay('Input volume is the same as output volume. Choose a different output volume.')
 			return False
 
-		#Run initial Landmark (Registration) Transformation Step 1
-		#self.rigidInputVolume = fiducialRegistration( self.atlasVolume, outputTrans,
-													  #inputVolume )
-		self.rigTrans = self.fiducialRegistration( self.atlasVolume, outputTrans,
-												inputVolume )
+		#Create intermediate linear transform node
+		self.linearTrans = slicer.vtkMRMLTransformNode()
+		slicer.mrmlScene.AddNode(self.linearTrans)
 
-		#TODO - replace input volume with rigidInputVolume OR make output of fiducialRegistration
-				# the initialTransfrom for the affine registration below!?!!
-
-		#Set parameters and run affine registration Step 2
-		cliParamsAffine = { 'fixedVolume' : inputVolume.GetID(),
-							'movingVolume': self.atlasVolume,
-							'linearTransform' : outputTrans.GetID() }
+		#Set parameters and run affine registration Step 1
+		cliParamsAffine = { 'fixedVolume' 		: inputVolume.GetID(),
+							'movingVolume'		: atlasVolume.GetID(),
+							'linearTransform' 	: self.linearTrans.GetID() }
 		cliParamsAffine.update({'samplingPercentage': 0.001,
-								'initializeTransformMode' : 'useGeometryAlign',
-								'transformType': 'Affine'})
-		cliNode = slicer.cli.run(slicer.modules.brainsfit, None, cliParamsAffine, wait_for_completion=True)
-		self.affineTransform = outputTrans.GetID() #Save Affine Transform output
+								'initialTransform' 	: initialTrans.GetID(),
+								'transformType'		: 'Affine'})
+		cliAffineTransNode = slicer.cli.run(slicer.modules.brainsfit, None, cliParamsAffine, wait_for_completion=True)
 
-		# Set parameters and run BSpline registration Step 3
-		#TODO - Use Landmark registration result as the "initializeTransformMode" parameter
-		cliParams = {'fixedVolume': inputVolume.GetID(), 'movingVolume': self.atlasVolume ,
+		#self.affineTransform = outputTrans.GetID() #Save Affine Transform output
+		#slicer.mrmlScene.AddNode(self.linearTrans)
+
+		# Set parameters and run BSpline registration Step 2
+		cliParams = {'fixedVolume': inputVolume.GetID(), 'movingVolume': atlasVolume.GetID(),
 						'bsplineTransform' : outputTrans.GetID() }
-		cliParams.update({'samplingPercentage': 1, 'initialTransform' : self.affineTransform })
+		cliParams.update({'samplingPercentage': 1, 'initialTransform' : cliAffineTransNode.GetID() })
 		cliParams.update({'transformType': 'BSpline', 'splineGridSize': '3,3,3'})
 		cliParams.update({'numberOfIterations' : 3000, 'minimumStepLength': 0.0001, 'maximumStepLength': 0.05})
 		cliParams.update({'costMetric' : 'NC' })
-		cliNode = slicer.cli.run(slicer.modules.brainsfit, None, cliParams, wait_for_completion=True)
-
-
+		cliBSplineTransNode = slicer.cli.run(slicer.modules.brainsfit, None, cliParams, wait_for_completion=True)
 
 		#Apply BSpline transform on A-Value Fiducials
-		self.atlasFiducial.SetAndObserveTransformNodeID(outputTrans.GetID())
-		slicer.vtkSlicerTransformLogic().hardenTransform(self.atlasFiducial)
+		atlasFid.SetAndObserveTransformNodeID(outputTrans.GetID())
+		slicer.vtkSlicerTransformLogic().hardenTransform(atlasFid)
 
 		#Calculate New A-Value
-		numOfFids = self.atlasFiducial.GetNumberOfFiducials()
+		numOfFids = atlasFid.GetNumberOfFiducials()
 		fidXYZ_RW = [0,0,0] #Round Window placeholder
 		fidXYZ_LW = [0,0,0] #Lateral Wall placeholder
 		print numOfFids
 		for index in range(numOfFids):
 			if index == 0:
-				self.atlasFiducial.GetNthFiducialPosition(index, fidXYZ_RW)
+				atlasFid.GetNthFiducialPosition(index, fidXYZ_RW)
 				print fidXYZ_RW
 			else:
-				self.atlasFiducial.GetNthFiducialPosition(index, fidXYZ_LW)
+				atlasFid.GetNthFiducialPosition(index, fidXYZ_LW)
 				print fidXYZ_LW
 
 		newAValue = math.sqrt(	((fidXYZ_RW[0] - fidXYZ_LW[0])**2) + \
