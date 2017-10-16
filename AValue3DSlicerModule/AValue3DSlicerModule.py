@@ -20,7 +20,7 @@ class AValue3DSlicerModule(ScriptedLoadableModule):
 		self.parent.dependencies = []
 		self.parent.contributors = ["John Eniolu (HML & SKA Lab.)"] # replace with "Firstname Lastname (Organization)"
 		self.parent.helpText = """
-		This a scripted loadable module bundled in an extension.
+		This is a scripted loadable module.
 		It calculates the A-value, used to estimate Cochlear Duct Length."""
 		self.parent.helpText += self.getDefaultModuleDocumentationLink()
 		self.parent.acknowledgementText = """This process was developed at
@@ -29,7 +29,6 @@ class AValue3DSlicerModule(ScriptedLoadableModule):
 #
 # AValue3DSlicerModuleWidget
 #
-
 class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 	"""Uses ScriptedLoadableModuleWidget base class,
 	available at:https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py"""
@@ -254,10 +253,10 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 
 	def cleanup(self):
 		pass
+
 #
 # AValue3DSlicerModuleLogic
 #
-
 class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 
 	"""This class should implement all the actual
@@ -379,8 +378,6 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 		return cropVolume
 
 	#Automated A-value implementation
-
-	#TODO - confirm difference between RIG & AFFINE transforms
 	def run(self, inputVolume, outputVolume, atlasVolume, initialTrans, outputTrans, atlasFid):
 		"""
 		Run the actual algorithm
@@ -408,9 +405,6 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 		logging.info('....Printing Affine Transform....')
 		logging.info(self.linearTrans)
 
-		#self.affineTransform = outputTrans.GetID() #Save Affine Transform output
-		#slicer.mrmlScene.AddNode(self.linearTrans)
-
 		# Set parameters and run BSpline registration Step 2
 		cliParams = {'fixedVolume': inputVolume.GetID(), 'movingVolume': atlasVolume.GetID(),
 						'bsplineTransform' : outputTrans.GetID() }
@@ -419,7 +413,6 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 		cliParams.update({'numberOfIterations' : 3000, 'minimumStepLength': 0.0001, 'maximumStepLength': 0.05})
 		cliParams.update({'costMetric' : 'NC' })
 		cliBSplineREG = slicer.cli.run(slicer.modules.brainsfit, None, cliParams, wait_for_completion=True)
-
 
 		logging.info('....Printing BSpline Transform....')
 		logging.info(outputTrans)
