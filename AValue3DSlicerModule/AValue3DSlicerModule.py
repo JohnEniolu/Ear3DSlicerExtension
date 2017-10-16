@@ -229,7 +229,7 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		self.alignButton.enabled = True
 
 	def onAlignButton(self):
-		
+
 		logging.info('TODO - Align Button Code')
 
 		self.LandmarkTrans = slicer.vtkMRMLTransformNode()
@@ -238,7 +238,7 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		logic = AValue3DSlicerModuleLogic()
 
 		if(self.placedLandmarkNode.GetNumberOfFiducials() == 4):
-			logic.runFiducialRegistration(self.LandmarkTrans, self.placedLandmarkNode)
+			logic.runFiducialRegistration(self.rightAtlas.isChecked(), self.LandmarkTrans, self.placedLandmarkNode)
 		else:
 			slicer.util.infoDisplay("4 Fiducials required for registration") #TODO - add appropriate information to help user!
 
@@ -300,33 +300,37 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 	#load Atlas and corresponding A-Value Fiducials
 	#TODO -Change file location to server location
 	def loadAtlasNodeAndFiducials(self, isRight,
-									atlasLocation = '/Users/JohnEniolu/Documents/AValueModuleData/initialAtlasR.nrrd',
-									fiducialLocation = '/Users/JohnEniolu/Documents/AValueModuleData/Atlas_AValue_F.fcsv'):
+									atlasLocationR 		= '/Users/JohnEniolu/Documents/AValueModuleData/initialAtlasR.nrrd' ,
+									fiducialLocationR 	= '/Users/JohnEniolu/Documents/AValueModuleData/Atlas_AValue_F.fcsv',
+									atlasLocationL 		= '/Users/JohnEniolu/Documents/AValueModuleData/initialAtlasL.nrrd' ,
+									fiducialLocationL	= '/Users/JohnEniolu/Documents/AValueModuleData/Atlas_AValue_MF.fcsv'):
 
 		#TODO - Make A-Value fiducials not visible in GUI
 		#create atlasnode
 		if isRight:
-			atlasNode = slicer.util.loadVolume(atlasLocation, returnNode=True)
-			atlasFiducial = slicer.util.loadMarkupsFiducialList(fiducialLocation, returnNode=True)
+			atlasNode = slicer.util.loadVolume(atlasLocationR, returnNode=True)
+			atlasFiducial = slicer.util.loadMarkupsFiducialList(fiducialLocationR, returnNode=True)
 			logging.info('Loaded right ear atlas')
 		else:
-			#TODO - load the left atlas
-			#atlasNode = slicer.util.loadVolume()
-			#atlasFiducial = slicer.util.loadFiducialList(fiducialLocation, returnNode=True)
+			atlasNode = slicer.util.loadVolume(atlasLocationL, returnNode=True)
+			atlasFiducial = slicer.util.loadMarkupsFiducialList(fiducialLocationL, returnNode=True)
 			logging.info('Loaded left ear atlas')
 		return atlasNode, atlasFiducial
 
-	#Load Affine Transform - NOTE: method not used/required
-	def loadAffineTransform(self, aTransLocation = '/Users/JohnEniolu/Documents/AValueModuleData/Atlas_to_2R_RIG.h5'):
-		#load Affine transform
-		affineTrans = slicer.util.loadTransform(aTransLocation, returnNode=True)
-		return affineTrans[1] #Return Transform only
-
-	#Load atlas Landmarks - TODO: specify left or right landmark required/requested
+	# #Load Affine Transform - NOTE: method not used/required
+	# def loadAffineTransform(self, aTransLocation = '/Users/JohnEniolu/Documents/AValueModuleData/Atlas_to_2R_RIG.h5'):
+	# 	#load Affine transform
+	# 	affineTrans = slicer.util.loadTransform(aTransLocation, returnNode=True)
+	# 	return affineTrans[1] #Return Transform only
 						   #TODO: Change file location to server location
-	def loadAtlasLandmark(self, landmarkLocation = '/Users/JohnEniolu/Documents/AValueModuleData/initialLandmarkREG.fcsv'):
+	def loadAtlasLandmark(	self, isRight,
+	 						landmarkLocationR = '/Users/JohnEniolu/Documents/AValueModuleData/initialLandmarkREG_R.fcsv',
+							landmarkLocationL = '/Users/JohnEniolu/Documents/AValueModuleData/initialLandmarkREG_L.fcsv'):
 		#Load fiducial landmark for initial atlas landmark registration
-		landmarkFid = slicer.util.loadMarkupsFiducialList(landmarkLocation, returnNode=True)
+		if isRight:
+			landmarkFid = slicer.util.loadMarkupsFiducialList(landmarkLocationR, returnNode=True)
+		else:
+			landmarkFid = slicer.util.loadMarkupsFiducialList(landmarkLocationL, returnNode=True)
 		logging.info('loading landmarks')
 		return landmarkFid[1]#Return fiducial only
 
@@ -346,20 +350,22 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 				self.atlasFiducial 				= self.loadFid[1]
 				return True, self.atlasVolume, self.atlasFiducial
 			elif atlasSelection == 'left':
-				self.atlasVolume = self.loadAtlasNode(False)
-				return True
+				self.loadedAtlas, self.loadFid	= self.loadAtlasNodeAndFiducials(False) #False implies not right i.e. left
+				self.atlasVolume				= self.loadedAtlas[1]
+				self.atlasFiducial				= self.loadFid[1]
+				return True, self.atlasVolume, self.atlasFiducial
 			else:
 				slicer.util.errorDisplay('Atlas not selected. Choose right or left ear atlas')
 				return False
 
-	def runFiducialRegistration(self, rigTrans, placedLandmarkNode ):
+	def runFiducialRegistration(self, isRight, rigTrans, placedLandmarkNode ):
 
 		#retrive fixed landmarks
-		fixedLandmarkNode = self.loadAtlasLandmark()
+		movingLandmarkNode = self.loadAtlasLandmark(isRight)
 
 		#Setup and Run Landmark Registration
-		cliParamsFidReg = {	'fixedLandmarks'	: fixedLandmarkNode.GetID(),
-						   	'movingLandmarks' 	: placedLandmarkNode.GetID(),
+		cliParamsFidReg = {	'fixedLandmarks'	: placedLandmarkNode.GetID(),
+						   	'movingLandmarks' 	: movingLandmarkNode.GetID(),
 							'transformType' 	: 'Rigid',
 							'saveTransform' 	: rigTrans.GetID() }
 
