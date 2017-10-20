@@ -102,6 +102,16 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		imageAlignment.addWidget(self.alignButton)
 		parametersFormLayout.addRow("Image Alignment: ", imageAlignment)
 
+
+		#
+		# Crop Volume Button
+		#
+		self.defineCropButton 			= qt.QPushButton("Define ROI")
+		self.defineCropButton.toolTip 	= "Select ROI from atlas image"
+		self.defineCropButton.enabled	= False
+		parametersFormLayout.addRow("Select Region of Interest: ", self.defineCropButton)
+
+
 		#
 		# output volume selector
 		#
@@ -150,6 +160,7 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		self.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
 		self.fidButton.connect('clicked(bool)', self.onFidButton)
 		self.alignButton.connect('clicked(bool)', self.onAlignButton)
+		self.defineCropButton.connect('clicked(bool)', self.onDefineCropButton)
 		self.outputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
 		self.outputTransformSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
 		self.applyButton.connect('clicked(bool)', self.onApplyButton)
@@ -240,6 +251,17 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 			logic.runFiducialRegistration(self.rightAtlas.isChecked(), self.LandmarkTrans, self.placedLandmarkNode)
 		else:
 			slicer.util.infoDisplay("4 Fiducials required for registration") #TODO - add appropriate information to help user!
+
+		self.defineCropButton.enabled	= True # enabled next step "Defining Crop region of interest"
+
+
+	def onDefineCropButton(self):
+		self.atlasROI = slicer.vtkMRMLAnnotationROINode()
+		self.atlasROI.Initialize(slicer.mrmlScene)
+		slicer.util.infoDisplay("place the Region of Interest (ROI) shape over Atlas Volume.\n\n" +
+		 						"NOTE: Ensure ROI encloses atlas in the Axial, Sagittal & Coronal views\n\n"+
+								"Press okay when ready to begin" )
+								
 
 	def onApplyButton(self):
 
@@ -373,7 +395,7 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 
 		#return cliRigTrans
 
-	def runCropVolume(self, atlas, volume):
+	def runCropVolume(self, roi, volume):
 		#TODO - Crop volume
 		return cropVolume
 
