@@ -104,13 +104,20 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 
 
 		#
-		# Crop Volume Button
+		# Define & Crop Volume Button
 		#
 		self.defineCropButton 			= qt.QPushButton("Define ROI")
 		self.defineCropButton.toolTip 	= "Select ROI from atlas image"
 		self.defineCropButton.enabled	= False
-		parametersFormLayout.addRow("Select Region of Interest: ", self.defineCropButton)
 
+		self.cropButton					= qt.QPushButton("Crop!")
+		self.cropButton.toolTip			= "Crop Image"
+		self.cropButton.enabled			= False
+
+		imageCropping = qt.QHBoxLayout()
+		imageCropping.addWidget(self.defineCropButton)
+		imageCropping.addWidget(self.cropButton)
+		parametersFormLayout.addRow("Select & Crop Region of Interest: ", imageCropping)
 
 		#
 		# output volume selector
@@ -143,9 +150,9 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		# self.outputTransformSelector.showChildNodeTypes = False
 		self.outputTransformSelector.setMRMLScene( slicer.mrmlScene )
 		self.outputTransformSelector.setToolTip( "output transform " )
-		parametersFormLayout.addRow("Output BSlpine Transform: ", self.outputTransformSelector)
+		parametersFormLayout.addRow("Output BSpline Transform: ", self.outputTransformSelector)
 
-		#
+		# 
 		# Calculate A-Value Button
 		#
 		self.applyButton = qt.QPushButton("Calculate A-Value")
@@ -211,6 +218,21 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 			self.atlasSelection = "none"
 
 		self.AtlasLoaded, self.atlasVolume, self.atlasFid = logic.runAtlasLoad(self.atlasSelection)
+		self.atlasVolume.SetDisplayVisibility(1) #Make atlas visible
+
+		#Display Atlas in 3D View
+		sliceWidgetR 	= slicer.app.layoutManager().sliceWidget('Red')
+		sliceWidgetY 	= slicer.app.layoutManager().sliceWidget('Yellow')
+		sliceWidgetG 	= slicer.app.layoutManager().sliceWidget('Green')
+		sliceLogicR = sliceWidgetR.sliceLogic()
+		sliceLogicY = sliceWidgetY.sliceLogic()
+		sliceLogicG = sliceWidgetG.sliceLogic()
+		sliceNodeR = sliceLogicR.GetSliceNode()
+		sliceNodeY = sliceLogicY.GetSliceNode()
+		sliceNodeG = sliceLogicG.GetSliceNode()
+		sliceNodeR.SetSliceVisible(True)
+		sliceNodeY.SetSliceVisible(True)
+		sliceNodeG.SetSliceVisible(True)
 
 	def onFidButton(self):
 
@@ -252,16 +274,31 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		else:
 			slicer.util.infoDisplay("4 Fiducials required for registration") #TODO - add appropriate information to help user!
 
+		#Apply Landmark transform on Atlas Volume & Harden
+		self.atlasVolume.SetAndObserveTransformNodeID(self.LandmarkTrans.GetID())
+		slicer.vtkSlicerTransformLogic().hardenTransform(self.atlasVolume)
+
+
 		self.defineCropButton.enabled	= True # enabled next step "Defining Crop region of interest"
+		self.placedLandmarkNode.SetDisplayVisibility(0) #turn off display of placed landmarks -TODO - Is this needed
 
 
 	def onDefineCropButton(self):
+
 		self.atlasROI = slicer.vtkMRMLAnnotationROINode()
 		self.atlasROI.Initialize(slicer.mrmlScene)
-		slicer.util.infoDisplay("place the Region of Interest (ROI) shape over Atlas Volume.\n\n" +
+		self.atlasROI.SetRadiusXYZ(self.atlasVolume.GetOrigin()) #set origin of ROI
+
+		slicer.mrmlScene.GetNodeByID(self.atlasVolume.GetID())
+
+		slicer.app.layoutManager().setLayout(1) #Set to appropriate view (conventional)
+		slicer.util.infoDisplay("Place the Region of Interest (ROI) shape over Atlas Volume.\n\n" +
 		 						"NOTE: Ensure ROI encloses atlas in the Axial, Sagittal & Coronal views\n\n"+
 								"Press okay when ready to begin" )
-								
+
+	def onCropButton(self):
+		logic = AValue3DSlicerModuleLogic()
+		#TODO - Carry out cropping of image
 
 	def onApplyButton(self):
 
@@ -369,11 +406,13 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 				self.loadedAtlas, self.loadFid 	= self.loadAtlasNodeAndFiducials(True) #Returns tuple
 				self.atlasVolume  				= self.loadedAtlas[1] #Retrieve atlas Volume from tuple
 				self.atlasFiducial 				= self.loadFid[1]
+				self.atlasFiducial.SetDisplayVisibility(0) #do not display atlas fiducials
 				return True, self.atlasVolume, self.atlasFiducial
 			elif atlasSelection == 'left':
 				self.loadedAtlas, self.loadFid	= self.loadAtlasNodeAndFiducials(False) #False implies not right i.e. left
 				self.atlasVolume				= self.loadedAtlas[1]
 				self.atlasFiducial				= self.loadFid[1]
+				self.atlasFiducial.SetDisplayVisibility(0) #do not display atlas fiducials
 				return True, self.atlasVolume, self.atlasFiducial
 			else:
 				slicer.util.errorDisplay('Atlas not selected. Choose right or left ear atlas')
@@ -393,10 +432,30 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 		cliRigTrans = slicer.cli.run(slicer.modules.fiducialregistration, None,
 									  cliParamsFidReg, wait_for_completion=True )
 
+		movingLandmarkNode.SetDisplayVisibility(0) #turn off display for moving landmarks
+
 		#return cliRigTrans
 
 	def runCropVolume(self, roi, volume):
 		#TODO - Crop volume
+
+		#Define cropping node
+		cropVolumeNode = slicer.vtkMRMLCropVolumeParametersNode()
+		cropVolumeNode.SetScene(slicer.mrmlScene)
+		cropVolumeNode.SetName('ChangeTracker_CropVolume_node')
+		cropVolumeNode.SetIsotropicResampling(True)
+		cropVolumeNode.SetSpacingScalingConst(0.5)
+		slicer.mrmlScene.AddNode(cropVolumeNode)
+
+		#Set volume and ROI required for cropping
+		cropVolumeNode.SetInputVolumeNodeID(volume.GetID())
+		cropVolumeNode.SetROINodeID(roi.GetID())
+
+		#Apply Cropping
+		cropVolumeLogic = slicer.modules.cropvolume.logic()
+		cropVolumeLogic.Apply(cropVolumeNode)
+
+		#TODO - Save cropped volume! - Which is it though!?
 		return cropVolume
 
 	#Automated A-value implementation
@@ -411,6 +470,7 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 
 		logging.info('.....Printing Initial Transform....')
 		logging.info(initialTrans)
+
 		#Create intermediate linear transform node
 		self.linearTrans = slicer.vtkMRMLTransformNode()
 		slicer.mrmlScene.AddNode(self.linearTrans)
@@ -419,20 +479,27 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 		cliParamsAffine = { 'fixedVolume' 		: inputVolume.GetID(),
 							'movingVolume'		: atlasVolume.GetID(),
 							'linearTransform' 	: self.linearTrans.GetID() }
-		cliParamsAffine.update({'samplingPercentage': 0.001,
-								'initialTransform' 	: initialTrans.GetID(),
-								'transformType'		: 'Affine'})
+		cliParamsAffine.update({'samplingPercentage'	: 1,
+								'initialTransformMode' 	: 'off',
+								'transformType'			: 'Affine'})
+		cliParamsAffine.update({'numberOfIterations' 	: 3000,
+								'minimumStepLength'		: 0.00001,
+								'maximumStepLength'		: 0.05})
 		cliAffineTransREG = slicer.cli.run(slicer.modules.brainsfit, None, cliParamsAffine, wait_for_completion=True)
 
 		logging.info('....Printing Affine Transform....')
 		logging.info(self.linearTrans)
+
+		#Apply linear transform on Atlas Volume
+		#atlasVolume.SetAndObserveTransformNodeID(linearTrans.GetID())
+		#slicer.vtkSlicerTransformLogic().hardenTransform(atlasVolume)
 
 		# Set parameters and run BSpline registration Step 2
 		cliParams = {'fixedVolume': inputVolume.GetID(), 'movingVolume': atlasVolume.GetID(),
 						'bsplineTransform' : outputTrans.GetID() }
 		cliParams.update({'samplingPercentage': 1, 'initialTransform' : self.linearTrans.GetID() })
 		cliParams.update({'transformType': 'BSpline', 'splineGridSize': '3,3,3'})
-		cliParams.update({'numberOfIterations' : 3000, 'minimumStepLength': 0.0001, 'maximumStepLength': 0.05})
+		cliParams.update({'numberOfIterations' : 3000, 'minimumStepLength': 0.00001, 'maximumStepLength': 0.05})
 		cliParams.update({'costMetric' : 'NC' })
 		cliBSplineREG = slicer.cli.run(slicer.modules.brainsfit, None, cliParams, wait_for_completion=True)
 
