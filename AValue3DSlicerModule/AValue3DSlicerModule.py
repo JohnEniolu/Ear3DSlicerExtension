@@ -86,21 +86,49 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		self.inputSelector.setToolTip( "select input image." )
 		parametersFormLayout.addRow("Input Volume: ", self.inputSelector)
 
+
+		#
+		# Fiduical buttons
+		#
+		self.OWButton		 	= qt.QPushButton("Oval Window")
+		self.OWButton.toolTip 	= "Place Oval Window Fiduical"
+		self.OWButton.enabled	= False
+
+		self.CNButton			=qt.QPushButton('Cochlear Nerve')
+		self.CNButton.toolTip 	= "Place Cochlear Nerve Fiduical"
+		self.CNButton.enabled	= False
+
+		self.AButton		 	= qt.QPushButton("Apex")
+		self.AButton.toolTip 	= "Place Apex Fiduical"
+		self.AButton.enabled	= False
+
+		self.RWButton			= qt.QPushButton('Round Window')
+		self.RWButton.toolTip 	= "Place Round Window Fiduical"
+		self.RWButton.enabled	= False
+
+		fiduicalPlacement = qt.QHBoxLayout()
+		fiduicalPlacement.addWidget(self.OWButton)
+		fiduicalPlacement.addWidget(self.CNButton)
+		fiduicalPlacement.addWidget(self.AButton)
+		fiduicalPlacement.addWidget(self.RWButton)
+		parametersFormLayout.addRow("Fiduical Placement: ", fiduicalPlacement)
+
+
 		#
 		# Place Fiduicals & Align Volumes Button
 		#
-		self.fidButton			= qt.QPushButton("Place Fiduicals")
-		self.fidButton.toolTip 	= "Place fiducials for volume alignment"
-		self.fidButton.enabled	= False
+		# self.fidButton			= qt.QPushButton("Place Fiduicals")
+		# self.fidButton.toolTip 	= "Place fiducials for volume alignment"
+		# self.fidButton.enabled	= False
 
 		self.alignButton 	= qt.QPushButton("Align Volume")
 		self.alignButton.toolTip = "Orient input volume to spatial region of Atlas"
 		self.alignButton.enabled = False
 
-		imageAlignment = qt.QHBoxLayout()
-		imageAlignment.addWidget(self.fidButton)
-		imageAlignment.addWidget(self.alignButton)
-		parametersFormLayout.addRow("Image Alignment: ", imageAlignment)
+		# imageAlignment = qt.QHBoxLayout()
+		# imageAlignment.addWidget(self.fidButton)
+		# imageAlignment.addWidget(self.alignButton)
+		parametersFormLayout.addRow(self.alignButton)
 
 
 		#
@@ -152,7 +180,7 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		self.outputTransformSelector.setToolTip( "output transform " )
 		parametersFormLayout.addRow("Output BSpline Transform: ", self.outputTransformSelector)
 
-		# 
+		#
 		# Calculate A-Value Button
 		#
 		self.applyButton = qt.QPushButton("Calculate A-Value")
@@ -165,7 +193,11 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		self.rightAtlas.connect('toggled(bool)', self.onRightEarSelection)
 		self.loadAtlasButton.connect('clicked(bool)', self.onLoadAtlasButton)
 		self.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
-		self.fidButton.connect('clicked(bool)', self.onFidButton)
+		#self.fidButton.connect('clicked(bool)', self.onFidButton)
+		self.OWButton.connect('clicked(bool)', self.onOWButton)
+		self.CNButton.connect('clicked(bool)', self.onCNButton)
+		self.AButton.connect('clicked(bool)', self.onAButton)
+		self.RWButton.connect('clicked(bool)', self.onRWButton)
 		self.alignButton.connect('clicked(bool)', self.onAlignButton)
 		self.defineCropButton.connect('clicked(bool)', self.onDefineCropButton)
 		self.outputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
@@ -190,7 +222,7 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 	def onSelect(self):
 
 		# update status of apply Button
-		self.fidButton.enabled = self.inputSelector.currentNode()
+		self.OWButton.enabled = self.inputSelector.currentNode()
 									#and self.AtlasLoaded
 		self.applyButton.enabled = self.inputSelector.currentNode() \
 									and self.outputSelector.currentNode() \
@@ -220,28 +252,51 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		self.AtlasLoaded, self.atlasVolume, self.atlasFid = logic.runAtlasLoad(self.atlasSelection)
 		self.atlasVolume.SetDisplayVisibility(1) #Make atlas visible
 
-		#Display Atlas in 3D View
-		sliceWidgetR 	= slicer.app.layoutManager().sliceWidget('Red')
-		sliceWidgetY 	= slicer.app.layoutManager().sliceWidget('Yellow')
-		sliceWidgetG 	= slicer.app.layoutManager().sliceWidget('Green')
-		sliceLogicR = sliceWidgetR.sliceLogic()
-		sliceLogicY = sliceWidgetY.sliceLogic()
-		sliceLogicG = sliceWidgetG.sliceLogic()
-		sliceNodeR = sliceLogicR.GetSliceNode()
-		sliceNodeY = sliceLogicY.GetSliceNode()
-		sliceNodeG = sliceLogicG.GetSliceNode()
-		sliceNodeR.SetSliceVisible(True)
-		sliceNodeY.SetSliceVisible(True)
-		sliceNodeG.SetSliceVisible(True)
+		# #Display Atlas in 3D View
+		# sliceWidgetR 	= slicer.app.layoutManager().sliceWidget('Red')
+		# sliceWidgetY 	= slicer.app.layoutManager().sliceWidget('Yellow')
+		# sliceWidgetG 	= slicer.app.layoutManager().sliceWidget('Green')
+		# sliceLogicR = sliceWidgetR.sliceLogic()
+		# sliceLogicY = sliceWidgetY.sliceLogic()
+		# sliceLogicG = sliceWidgetG.sliceLogic()
+		# sliceNodeR = sliceLogicR.GetSliceNode()
+		# sliceNodeY = sliceLogicY.GetSliceNode()
+		# sliceNodeG = sliceLogicG.GetSliceNode()
+		# sliceNodeR.SetSliceVisible(True)
+		# sliceNodeY.SetSliceVisible(True)
+		# sliceNodeG.SetSliceVisible(True)
 
-	def onFidButton(self):
+	# def onFidButton(self):
+	#
+	# 	logging.info('Fiducial button selected')
+	#
+	# 	#Creat Markup node & add to scene
+	# 	self.placedLandmarkNode = slicer.vtkMRMLMarkupsFiducialNode()
+	# 	slicer.mrmlScene.AddNode(self.placedLandmarkNode)
+	#
+	# 	#Fiduical Placement Widget
+	# 	self.fiducialWidget = slicer.qSlicerMarkupsPlaceWidget()
+	# 	self.fiducialWidget.buttonsVisible = False
+	# 	self.fiducialWidget.placeButton().show()
+	# 	self.fiducialWidget.setMRMLScene(slicer.mrmlScene)
+	# 	self.fiducialWidget.setCurrentNode(self.placedLandmarkNode)
+	# 	self.fiducialWidget.placeMultipleMarkups = slicer.qSlicerMarkupsPlaceWidget.ForcePlaceSingleMarkup
+	#
+	# 	#Show fiducial placement Widget
+	# 	self.fiducialWidget.show()
+	# 	#Delay to ensure Widget Appears
+	# 	slicer.util.infoDisplay("Place the following fiducials in order:\n\n" +
+	# 	 						"- Oval Window\n- Cochlear Nerve\n- Apex\n- Round Window\n\n"+
+	# 							"Press okay when ready to begin" )
+	#
+	# 	#Enable alignment option
+	# 	self.alignButton.enabled = True
 
-		logging.info('Fiducial button selected')
+	def onOWButton(self):
 
-		#Creat Markup node & add to scene
+		#Setup Fiduical placement
 		self.placedLandmarkNode = slicer.vtkMRMLMarkupsFiducialNode()
 		slicer.mrmlScene.AddNode(self.placedLandmarkNode)
-
 		#Fiduical Placement Widget
 		self.fiducialWidget = slicer.qSlicerMarkupsPlaceWidget()
 		self.fiducialWidget.buttonsVisible = False
@@ -250,20 +305,61 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		self.fiducialWidget.setCurrentNode(self.placedLandmarkNode)
 		self.fiducialWidget.placeMultipleMarkups = slicer.qSlicerMarkupsPlaceWidget.ForcePlaceSingleMarkup
 
-		#Show fiducial placement Widget
-		self.fiducialWidget.show()
-		#Delay to ensure Widget Appears
-		slicer.util.infoDisplay("Place the following fiducials in order:\n\n" +
-		 						"- Oval Window\n- Cochlear Nerve\n- Apex\n- Round Window\n\n"+
+		#Delay to ensure Widget Appears & provide user with info
+		slicer.util.infoDisplay("Place the following fiducial:\n\n" +
+			 					"Oval Window\n\n" +
 								"Press okay when ready to begin" )
 
-		#Enable alignment option
+		#Enable fiducial placement
+		self.fiducialWidget.setPlaceModeEnabled(True)
+		#Enable Cochlear Nevre button
+		self.OWButton.enabled = False
+		self.CNButton.enabled = True
+
+
+	def onCNButton(self):
+
+		#Delay to ensure Widget Appears & provide user with info
+		slicer.util.infoDisplay("Place the following fiducial:\n\n" +
+			 					"Cochlear Nerve\n\n" +
+								"Press okay when ready to begin" )
+
+		#Enable fiducial placement
+		self.fiducialWidget.setPlaceModeEnabled(True)
+		#Enable Apex button
+		self.CNButton.enabled = False
+		self.AButton.enabled = True
+
+	def onAButton(self):
+
+		#Delay to ensure Widget Appears & provide user with info
+		slicer.util.infoDisplay("Place the following fiducial:\n\n" +
+			 					"Apex\n\n" +
+								"Press okay when ready to begin" )
+
+		#Enable fiducial placement
+		self.fiducialWidget.setPlaceModeEnabled(True)
+		#Enable Round Window button
+		self.AButton.enabled = False
+		self.RWButton.enabled = True
+
+	def onRWButton(self):
+
+		#Delay to ensure Widget Appears & provide user with info
+		slicer.util.infoDisplay("Place the following fiducial:\n\n" +
+			 					"Round Window\n\n" +
+								"Press okay when ready to begin" )
+
+		#Enable fiducial placement
+		self.fiducialWidget.setPlaceModeEnabled(True)
+		#Enable alignment button
+		self.RWButton.enabled = False
 		self.alignButton.enabled = True
 
 	def onAlignButton(self):
 
-		logging.info('TODO - Align Button Code')
-
+		self.RWButton.enabled = False
+		#Create Landmark transform placeholder
 		self.LandmarkTrans = slicer.vtkMRMLTransformNode()
 		slicer.mrmlScene.AddNode(self.LandmarkTrans)
 
@@ -274,9 +370,12 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		else:
 			slicer.util.infoDisplay("4 Fiducials required for registration") #TODO - add appropriate information to help user!
 
-		#Apply Landmark transform on Atlas Volume & Harden
+		#Apply Landmark transform on Atlas Volume then Harden
 		self.atlasVolume.SetAndObserveTransformNodeID(self.LandmarkTrans.GetID())
 		slicer.vtkSlicerTransformLogic().hardenTransform(self.atlasVolume)
+		#Apply Landmark transform on Fiduicals then Harden
+		self.atlasFid.SetAndObserveTransformNodeID(self.LandmarkTrans.GetID())
+		slicer.vtkSlicerTransformLogic().hardenTransform(self.atlasFid)
 
 
 		self.defineCropButton.enabled	= True # enabled next step "Defining Crop region of interest"
@@ -495,11 +594,16 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 		#slicer.vtkSlicerTransformLogic().hardenTransform(atlasVolume)
 
 		# Set parameters and run BSpline registration Step 2
-		cliParams = {'fixedVolume': inputVolume.GetID(), 'movingVolume': atlasVolume.GetID(),
-						'bsplineTransform' : outputTrans.GetID() }
-		cliParams.update({'samplingPercentage': 1, 'initialTransform' : self.linearTrans.GetID() })
-		cliParams.update({'transformType': 'BSpline', 'splineGridSize': '3,3,3'})
-		cliParams.update({'numberOfIterations' : 3000, 'minimumStepLength': 0.00001, 'maximumStepLength': 0.05})
+		cliParams = {	'fixedVolume'		: inputVolume.GetID(),
+		 				'movingVolume'		: atlasVolume.GetID(),
+						'bsplineTransform' 	: outputTrans.GetID() }
+		cliParams.update({	'samplingPercentage': 1,
+		 					'initialTransform' 	: self.linearTrans.GetID() })
+		cliParams.update({	'transformType'	: 'BSpline',
+							'splineGridSize': '3,3,3'})
+		cliParams.update({	'numberOfIterations' 	: 3000,
+		 					'minimumStepLength'		: 0.00001,
+							'maximumStepLength'		: 0.05})
 		cliParams.update({'costMetric' : 'NC' })
 		cliBSplineREG = slicer.cli.run(slicer.modules.brainsfit, None, cliParams, wait_for_completion=True)
 
