@@ -200,6 +200,7 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		self.RWButton.connect('clicked(bool)', self.onRWButton)
 		self.alignButton.connect('clicked(bool)', self.onAlignButton)
 		self.defineCropButton.connect('clicked(bool)', self.onDefineCropButton)
+		self.cropButton.connect('clicked(bool)', self.onCropButton)
 		self.outputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
 		self.outputTransformSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
 		self.applyButton.connect('clicked(bool)', self.onApplyButton)
@@ -266,31 +267,6 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		# sliceNodeY.SetSliceVisible(True)
 		# sliceNodeG.SetSliceVisible(True)
 
-	# def onFidButton(self):
-	#
-	# 	logging.info('Fiducial button selected')
-	#
-	# 	#Creat Markup node & add to scene
-	# 	self.placedLandmarkNode = slicer.vtkMRMLMarkupsFiducialNode()
-	# 	slicer.mrmlScene.AddNode(self.placedLandmarkNode)
-	#
-	# 	#Fiduical Placement Widget
-	# 	self.fiducialWidget = slicer.qSlicerMarkupsPlaceWidget()
-	# 	self.fiducialWidget.buttonsVisible = False
-	# 	self.fiducialWidget.placeButton().show()
-	# 	self.fiducialWidget.setMRMLScene(slicer.mrmlScene)
-	# 	self.fiducialWidget.setCurrentNode(self.placedLandmarkNode)
-	# 	self.fiducialWidget.placeMultipleMarkups = slicer.qSlicerMarkupsPlaceWidget.ForcePlaceSingleMarkup
-	#
-	# 	#Show fiducial placement Widget
-	# 	self.fiducialWidget.show()
-	# 	#Delay to ensure Widget Appears
-	# 	slicer.util.infoDisplay("Place the following fiducials in order:\n\n" +
-	# 	 						"- Oval Window\n- Cochlear Nerve\n- Apex\n- Round Window\n\n"+
-	# 							"Press okay when ready to begin" )
-	#
-	# 	#Enable alignment option
-	# 	self.alignButton.enabled = True
 
 	def onOWButton(self):
 
@@ -365,6 +341,7 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 
 		logic = AValue3DSlicerModuleLogic()
 
+		#Run fiducial registration
 		if(self.placedLandmarkNode.GetNumberOfFiducials() == 4):
 			logic.runFiducialRegistration(self.rightAtlas.isChecked(), self.LandmarkTrans, self.placedLandmarkNode)
 		else:
@@ -377,6 +354,23 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		self.atlasFid.SetAndObserveTransformNodeID(self.LandmarkTrans.GetID())
 		slicer.vtkSlicerTransformLogic().hardenTransform(self.atlasFid)
 
+		#Set Atlas to foreground in Slice Views
+		applicationLogic 	= slicer.app.applicationLogic()
+		selectionNode 		= applicationLogic.GetSelectionNode()
+		selectionNode.SetSecondaryVolumeID(self.atlasVolume.GetID())
+		applicationLogic.PropagateForegroundVolumeSelection(0)
+
+		#set overlap of foreground & background in slice view
+		sliceLayout = slicer.app.layoutManager()
+		sliceLogicR = sliceLayout.sliceWidget('Red').sliceLogic()
+		compositeNodeR = sliceLogicR.GetSliceCompositeNode()
+		compositeNodeR.SetForegroundOpacity(0.5)
+		sliceLogicY = sliceLayout.sliceWidget('Yellow').sliceLogic()
+		compositeNodeY = sliceLogicY.GetSliceCompositeNode()
+		compositeNodeY.SetForegroundOpacity(0.5)
+		sliceLogicG = sliceLayout.sliceWidget('Green').sliceLogic()
+		compositeNodeG = sliceLogicG.GetSliceCompositeNode()
+		compositeNodeG.SetForegroundOpacity(0.5)
 
 		self.defineCropButton.enabled	= True # enabled next step "Defining Crop region of interest"
 		self.placedLandmarkNode.SetDisplayVisibility(0) #turn off display of placed landmarks -TODO - Is this needed
@@ -384,20 +378,38 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 
 	def onDefineCropButton(self):
 
-		self.atlasROI = slicer.vtkMRMLAnnotationROINode()
-		self.atlasROI.Initialize(slicer.mrmlScene)
-		self.atlasROI.SetRadiusXYZ(self.atlasVolume.GetOrigin()) #set origin of ROI
-
-		slicer.mrmlScene.GetNodeByID(self.atlasVolume.GetID())
-
 		slicer.app.layoutManager().setLayout(1) #Set to appropriate view (conventional)
+
+		#Create Region of Interest (ROI)
+		self.atlasROI 		= slicer.vtkMRMLAnnotationROINode()
+		self.atlasROI.Initialize(slicer.mrmlScene)
+		self.cropVolumeNode = slicer.vtkMRMLCropVolumeParametersNode()
+		self.cropVolumeNode.SetScene(slicer.mrmlScene)
+		self.cropVolumeNode.SetName('Crop_volume_Node')
+		self.cropVolumeNode.SetInputVolumeNodeID(self.atlasVolume.GetID())
+		self.cropVolumeNode.SetROINodeID(self.atlasROI.GetID())
+		self.cropVolumeNode.VoxelBasedOn()
+		logging.info(self.cropVolumeNode.GetVoxelBased())
+		slicer.mrmlScene.AddNode(self.cropVolumeNode)
+
+
+		#Fit ROI to input Volume
+		logic = AValue3DSlicerModuleLogic()
+		self.atlasROI	= logic.runDefineCropROI(self.cropVolumeNode)
+
+		#Instruct user on ROI placement
 		slicer.util.infoDisplay("Place the Region of Interest (ROI) shape over Atlas Volume.\n\n" +
-		 						"NOTE: Ensure ROI encloses atlas in the Axial, Sagittal & Coronal views\n\n"+
-								"Press okay when ready to begin" )
+		  						"NOTE: Ensure ROI encloses atlas in the:\n\nAxial (Red)\nSagittal(Yellow)\nCoronal(Green)\n\n"+
+		 						"Press okay when ready to begin" )
+
+		self.cropButton.enabled = True
 
 	def onCropButton(self):
 		logic = AValue3DSlicerModuleLogic()
-		#TODO - Carry out cropping of image
+
+		#Crop Image
+		self.cropVolume = logic.runCropVolume(	self.atlasROI,
+												self.inputSelector.currentNode() )
 
 	def onApplyButton(self):
 
@@ -405,10 +417,12 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		logic = AValue3DSlicerModuleLogic()
 
 		#Run module logic
-		logic.run(	self.inputSelector.currentNode(), self.outputSelector.currentNode(),
+		# logic.run(	self.inputSelector.currentNode(), self.outputSelector.currentNode(),
+		# 			self.atlasVolume, self.LandmarkTrans,
+		# 			self.outputTransformSelector.currentNode(), self.atlasFid )
+		logic.run(	self.cropVolume, self.outputSelector.currentNode(),
 					self.atlasVolume, self.LandmarkTrans,
 					self.outputTransformSelector.currentNode(), self.atlasFid )
-
 	def cleanup(self):
 		pass
 
@@ -535,27 +549,54 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 
 		#return cliRigTrans
 
-	def runCropVolume(self, roi, volume):
-		#TODO - Crop volume
 
-		#Define cropping node
-		cropVolumeNode = slicer.vtkMRMLCropVolumeParametersNode()
-		cropVolumeNode.SetScene(slicer.mrmlScene)
-		cropVolumeNode.SetName('ChangeTracker_CropVolume_node')
-		cropVolumeNode.SetIsotropicResampling(True)
-		cropVolumeNode.SetSpacingScalingConst(0.5)
-		slicer.mrmlScene.AddNode(cropVolumeNode)
+	def runDefineCropROI(self, cropParam):
+
+		#TODO - Implement the SnapROIToVoxelGrid/FitROIToInputVolume method
+		vol 		= slicer.mrmlScene.GetNodeByID(cropParam.GetInputVolumeNodeID()	)
+
+		volOrigin	= [0,0,0]
+		volOrigin 	= vol.GetOrigin()
+		logging.info(volOrigin)
+
+		# transMatrix = vtk.vtkMatrix4x4()
+		# vol.GetIJKToRASMatrix(transMatrix)
+		# logging.info(transMatrix)
+
+		volBounds	= [0,0,0,0,0,0]
+		vol.GetRASBounds(volBounds)
+		logging.info(volBounds)
+		volDim		= [  (volBounds[1]-volBounds[0]),
+						 (volBounds[3]-volBounds[2]),
+						 (volBounds[5]-volBounds[4])]
+		roi			= slicer.mrmlScene.GetNodeByID(cropParam.GetROINodeID())
+
+		roi.SetXYZ(volOrigin)
+		roi.SetRadiusXYZ(volDim[0]/2, volDim[1]/2, volDim[2]/2 )
+		return roi
+
+
+	def runCropVolume(self, roi, volume):
+
+		#slicer.mrmlScene.AddNode(cropParam)
+		#TODO - Crop volume
+		cropParamNode = slicer.vtkMRMLCropVolumeParametersNode()
+		cropParamNode.SetScene(slicer.mrmlScene)
+		cropParamNode.SetName('Crop_volume_Node2')
 
 		#Set volume and ROI required for cropping
-		cropVolumeNode.SetInputVolumeNodeID(volume.GetID())
-		cropVolumeNode.SetROINodeID(roi.GetID())
+		cropParamNode.SetInputVolumeNodeID(volume.GetID())
+		cropParamNode.SetROINodeID(roi.GetID())
+		cropParamNode.VoxelBasedOff()
+		logging.info(cropParamNode.GetVoxelBased())
+		slicer.mrmlScene.AddNode(cropParamNode)
 
 		#Apply Cropping
 		cropVolumeLogic = slicer.modules.cropvolume.logic()
-		cropVolumeLogic.Apply(cropVolumeNode)
+		cropVolumeLogic.Apply(cropParamNode)
+		cropVol = slicer.mrmlScene.GetNodeByID(cropParamNode.GetOutputVolumeNodeID())
 
-		#TODO - Save cropped volume! - Which is it though!?
-		return cropVolume
+		return cropVol
 
 	#Automated A-value implementation
 	def run(self, inputVolume, outputVolume, atlasVolume, initialTrans, outputTrans, atlasFid):
