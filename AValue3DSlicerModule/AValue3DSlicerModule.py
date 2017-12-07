@@ -672,9 +672,19 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 								((fidXYZ_RW[1] - fidXYZ_LW[1])**2) + \
 								((fidXYZ_LW[2] - fidXYZ_RW[2])**2)		)
 
+
+		#Calculating CDL Estimates
+		AlexiadesCDLoc 	= 4.16 * newAValue - 4 		#CDL estimate from Alexiades et al. (2015)
+		KochCDLoc 		= 4.16 * newAValue - 5.05	#CDL estimate from Koch et al. (2017)
+		KochCDLlw		= 3.86 * newAValue + 4.99	#CDL estimtae from Koch et al. (2017)
+
 		#Display Patient ID and Estimated A Valuee
 		outputDisp = "Patient ID:\n" + inputVolume.GetName() + \
-					"\n\nEstimated A Value:\n" + format(newAValue, '0.1f') + 'mm'
+					"\n\nEstimated A Value:\n" + format(newAValue, '0.1f') + 'mm\n\n' + \
+					"Estimated CDL Values\n" + "CDL(oc)-1: " + format(AlexiadesCDLoc, '0.1f') + 'mm\n' + \
+					"CDL(oc)-2: " + format(KochCDLoc, '0.1f') + "mm\n" + \
+					"CDL(lw)-1: " + format(KochCDLlw, '0.1f') + "mm\n"
+
 		slicer.util.infoDisplay(outputDisp)
 
 		logging.info('Processing completed')
