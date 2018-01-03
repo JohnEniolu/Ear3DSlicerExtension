@@ -1,0 +1,5 @@
+# Markups fiducial file version = 4.5
+# CoordinateSystem = 0
+# columns = id,x,y,z,ow,ox,oy,oz,vis,sel,lock,label,desc,associatedNodeID
+vtkMRMLMarkupsFiducialNode_4,-0.953094,-6.75153,-1.45008,0,0,0,1,1,1,0,Atlas_AValue_MF-1,RWindow,vtkMRMLScalarVolumeNode1
+vtkMRMLMarkupsFiducialNode_6,-8.3798,-5.59324,-6.26437,0,0,0,1,1,1,0,Atlas_AValue_MF-3,LatWall,vtkMRMLScalarVolumeNode1

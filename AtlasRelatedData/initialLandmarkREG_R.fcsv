@@ -1,0 +1,7 @@
+# Markups fiducial file version = 4.6
+# CoordinateSystem = 0
+# columns = id,x,y,z,ow,ox,oy,oz,vis,sel,lock,label,desc,associatedNodeID
+vtkMRMLMarkupsFiducialNode_0,28.2627,-2.08528,15.1268,0,0,0,1,1,1,0,initialLandmarkREG-1,Oval Window,vtkMRMLScalarVolumeNode1
+vtkMRMLMarkupsFiducialNode_1,22.8926,-0.0846658,15.5731,0,0,0,1,1,1,0,initialLandmarkREG-2,Cochlear Nerve,vtkMRMLScalarVolumeNode1
+vtkMRMLMarkupsFiducialNode_2,24.7962,2.95622,14.8293,0,0,0,1,1,1,0,initialLandmarkREG-3,Apex,vtkMRMLScalarVolumeNode1
+vtkMRMLMarkupsFiducialNode_3,26.8412,-2.42749,11.684,0,0,0,1,1,1,0,initialLandmarkREG-4,Round Window,vtkMRMLScalarVolumeNode1
