@@ -15,10 +15,10 @@ class AValue3DSlicerModule(ScriptedLoadableModule):
 
 	def __init__(self, parent):
 		ScriptedLoadableModule.__init__(self, parent)
-		self.parent.title = "A-Value Measurement" # TODO make this more human readable by adding spaces
+		self.parent.title = "A-Value Measurement"
 		self.parent.categories = ["Otolaryngology"]
 		self.parent.dependencies = []
-		self.parent.contributors = ["John Eniolu (Auditory Biophyiscs Lab)"] # replace with "Firstname Lastname (Organization)"
+		self.parent.contributors = ["John Eniolu (Auditory Biophyiscs Lab)"]
 		self.parent.helpText = """
 		This is a scripted loadable module.
 		It measures the A-value, used to estimate Cochlear Duct Length."""
