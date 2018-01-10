@@ -3,6 +3,7 @@ import unittest
 import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
 import logging
+import urllib
 import math
 import time
 
@@ -94,7 +95,7 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		self.OWButton.toolTip 	= "Place Oval Window Fiduical"
 		self.OWButton.enabled	= False
 
-		self.CNButton			=qt.QPushButton('Cochlear Nerve')
+		self.CNButton			= qt.QPushButton('Cochlear Nerve')
 		self.CNButton.toolTip 	= "Place Cochlear Nerve Fiduical"
 		self.CNButton.enabled	= False
 
@@ -113,14 +114,9 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		fiduicalPlacement.addWidget(self.RWButton)
 		parametersFormLayout.addRow("Fiduical Placement: ", fiduicalPlacement)
 
-
 		#
-		# Place Fiduicals & Align Volumes Button
+		#Align Button - for initial rigid alignment of images
 		#
-		# self.fidButton			= qt.QPushButton("Place Fiduicals")
-		# self.fidButton.toolTip 	= "Place fiducials for volume alignment"
-		# self.fidButton.enabled	= False
-
 		self.alignButton 	= qt.QPushButton("Align Volume")
 		self.alignButton.toolTip = "Orient input volume to spatial region of Atlas"
 		self.alignButton.enabled = False
@@ -174,8 +170,6 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		self.outputTransformSelector.renameEnabled = True
 		self.outputTransformSelector.removeEnabled = True
 		self.outputTransformSelector.noneEnabled = True
-		# self.outputTransformSelector.showHidden = False
-		# self.outputTransformSelector.showChildNodeTypes = False
 		self.outputTransformSelector.setMRMLScene( slicer.mrmlScene )
 		self.outputTransformSelector.setToolTip( "output transform " )
 		parametersFormLayout.addRow("Output BSpline Transform: ", self.outputTransformSelector)
@@ -193,7 +187,6 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		self.rightAtlas.connect('toggled(bool)', self.onRightEarSelection)
 		self.loadAtlasButton.connect('clicked(bool)', self.onLoadAtlasButton)
 		self.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect)
-		#self.fidButton.connect('clicked(bool)', self.onFidButton)
 		self.OWButton.connect('clicked(bool)', self.onOWButton)
 		self.CNButton.connect('clicked(bool)', self.onCNButton)
 		self.AButton.connect('clicked(bool)', self.onAButton)
@@ -380,27 +373,28 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 
 		slicer.app.layoutManager().setLayout(1) #Set to appropriate view (conventional)
 
-		#Create Region of Interest (ROI)
-		self.atlasROI 		= slicer.vtkMRMLAnnotationROINode()
-		self.atlasROI.Initialize(slicer.mrmlScene)
+		#Define Cropped Volume Parameters
 		self.cropVolumeNode = slicer.vtkMRMLCropVolumeParametersNode()
 		self.cropVolumeNode.SetScene(slicer.mrmlScene)
 		self.cropVolumeNode.SetName('Crop_volume_Node')
 		self.cropVolumeNode.SetInputVolumeNodeID(self.atlasVolume.GetID())
-		self.cropVolumeNode.SetROINodeID(self.atlasROI.GetID())
 		self.cropVolumeNode.VoxelBasedOn()
 		logging.info(self.cropVolumeNode.GetVoxelBased())
 		slicer.mrmlScene.AddNode(self.cropVolumeNode)
 
 
-		#Fit ROI to input Volume
+		#Fit ROI to input Volume and initialize in scene
 		logic = AValue3DSlicerModuleLogic()
+		self.atlasROI 		= slicer.vtkMRMLAnnotationROINode()
+		self.atlasROI.Initialize(slicer.mrmlScene)
+		self.cropVolumeNode.SetROINodeID(self.atlasROI.GetID())
 		self.atlasROI	= logic.runDefineCropROI(self.cropVolumeNode)
 
+
 		#Instruct user on ROI placement
-		slicer.util.infoDisplay("Place the Region of Interest (ROI) shape over Atlas Volume.\n\n" +
-		  						"NOTE: Ensure ROI encloses atlas in the:\n\nAxial (Red)\nSagittal(Yellow)\nCoronal(Green)\n\n"+
-		 						"Press okay when ready to begin" )
+		slicer.util.infoDisplay("NOTE: Ensure Region of Interest (ROI) encloses atlas in the:"+
+								"\n\nAxial (Red)\nSagittal(Yellow)\nCoronal(Green)\n\n"+
+		 						"Press okay to continue" )
 
 		self.cropButton.enabled = True
 
@@ -476,8 +470,18 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 									atlasLocationL 		= '/Users/JohnEniolu/Documents/AValueModuleData/initialAtlasL.nrrd' ,
 									fiducialLocationL	= '/Users/JohnEniolu/Documents/AValueModuleData/Atlas_AValue_MF.fcsv'):
 
-		#TODO - Make A-Value fiducials not visible in GUI
+		#TODO -Specify location of required data on server
+		#atlasLocationR 	= urllib.urlretrieve('<...Insert Server Location of Right Atlas...>',
+		#										 'initialAtlasR.nrrd')
+		#fiducialLocationR 	= urllib.urlretrieve('<...Insert Server Location of right A-Value...>',
+		#										 'Atlas_AValue_F.fcsv')
+		#atlasLocationL 	= urllib.urlretrieve('<...Insert Server Location of left Atlas...>',
+		#										 'initialAtlasL.nrrd')
+		#fiducialLocationL	= urllib.urlretrieve('<...Insert Server Location of left A-Value...>',
+		#										 'Atlas_AValue_MF.fcsv')
+
 		#create atlasnode
+
 		if isRight:
 			atlasNode = slicer.util.loadVolume(atlasLocationR, returnNode=True)
 			atlasFiducial = slicer.util.loadMarkupsFiducialList(fiducialLocationR, returnNode=True)
@@ -488,16 +492,19 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 			logging.info('Loaded left ear atlas')
 		return atlasNode, atlasFiducial
 
-	# #Load Affine Transform - NOTE: method not used/required
-	# def loadAffineTransform(self, aTransLocation = '/Users/JohnEniolu/Documents/AValueModuleData/Atlas_to_2R_RIG.h5'):
-	# 	#load Affine transform
-	# 	affineTrans = slicer.util.loadTransform(aTransLocation, returnNode=True)
-	# 	return affineTrans[1] #Return Transform only
-						   #TODO: Change file location to server location
+	#TODO: Change file location to server location
 	def loadAtlasLandmark(	self, isRight,
 	 						landmarkLocationR = '/Users/JohnEniolu/Documents/AValueModuleData/initialLandmarkREG_R.fcsv',
 							landmarkLocationL = '/Users/JohnEniolu/Documents/AValueModuleData/initialLandmarkREG_L.fcsv'):
 		#Load fiducial landmark for initial atlas landmark registration
+
+
+		#TODO- Specify location of required data on server
+		#landmarklLocationR 	= urllib.urlretrieve('<...Insert Server Location of right landmarks...>',
+		#										 'initialLandmarkREG_R.fcsv')
+		#landmarkLocationL		= urllib.urlretrieve('<...Insert Server Location of left landmarks...>',
+		#										 'initialLandmarkREG_L.fcsv')
+
 		if isRight:
 			landmarkFid = slicer.util.loadMarkupsFiducialList(landmarkLocationR, returnNode=True)
 		else:
@@ -552,26 +559,24 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 
 	def runDefineCropROI(self, cropParam):
 
-		#TODO - Implement the SnapROIToVoxelGrid/FitROIToInputVolume method
 		vol 		= slicer.mrmlScene.GetNodeByID(cropParam.GetInputVolumeNodeID()	)
-
-		volOrigin	= [0,0,0]
-		volOrigin 	= vol.GetOrigin()
-		logging.info(volOrigin)
-
-		# transMatrix = vtk.vtkMatrix4x4()
-		# vol.GetIJKToRASMatrix(transMatrix)
-		# logging.info(transMatrix)
 
 		volBounds	= [0,0,0,0,0,0]
 		vol.GetRASBounds(volBounds)
 		logging.info(volBounds)
+
+		#Find Dimensions of Image
 		volDim		= [  (volBounds[1]-volBounds[0]),
 						 (volBounds[3]-volBounds[2]),
-						 (volBounds[5]-volBounds[4])]
+						 (volBounds[5]-volBounds[4])   ]
 		roi			= slicer.mrmlScene.GetNodeByID(cropParam.GetROINodeID())
 
-		roi.SetXYZ(volOrigin)
+		#Find Center of Image
+		volCenter 	= [  ((volBounds[0]+volBounds[1])/2),
+						 ((volBounds[2]+volBounds[3])/2),
+						 ((volBounds[4]+volBounds[5])/2)   ]
+
+		roi.SetXYZ(volCenter)
 		roi.SetRadiusXYZ(volDim[0]/2, volDim[1]/2, volDim[2]/2 )
 		return roi
 
@@ -582,7 +587,7 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 		#TODO - Crop volume
 		cropParamNode = slicer.vtkMRMLCropVolumeParametersNode()
 		cropParamNode.SetScene(slicer.mrmlScene)
-		cropParamNode.SetName('Crop_volume_Node2')
+		cropParamNode.SetName('Crop_volume_Node1')
 
 		#Set volume and ROI required for cropping
 		cropParamNode.SetInputVolumeNodeID(volume.GetID())
