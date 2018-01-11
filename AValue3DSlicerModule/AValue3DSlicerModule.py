@@ -120,10 +120,6 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		self.alignButton 	= qt.QPushButton("Align Volume")
 		self.alignButton.toolTip = "Orient input volume to spatial region of Atlas"
 		self.alignButton.enabled = False
-
-		# imageAlignment = qt.QHBoxLayout()
-		# imageAlignment.addWidget(self.fidButton)
-		# imageAlignment.addWidget(self.alignButton)
 		parametersFormLayout.addRow(self.alignButton)
 
 
@@ -205,20 +201,14 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		self.onSelect()
 
 		# Refresh Ear Selection checkboxes state
-		#self.AtlasLoaded = False
 		self.onLeftEarSelection()
 		self.onRightEarSelection()
-
-		#initialize placed landmark node & respective transform node
-		#self.placedLandmarkNode = slicer.vtkMRMLMarkupsFiducialNode()
-		#self.LandmarkTrans 		= slicer.vtkMRMLTransformNode()
 
 	def onSelect(self):
 
 		# update status of apply Button
-		self.OWButton.enabled = self.inputSelector.currentNode()
-									#and self.AtlasLoaded
-		self.applyButton.enabled = self.inputSelector.currentNode() \
+		self.OWButton.enabled 		= self.inputSelector.currentNode()
+		self.applyButton.enabled 	= self.inputSelector.currentNode() \
 									and self.outputSelector.currentNode() \
 									and self.outputTransformSelector.currentNode()
 
@@ -246,21 +236,6 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		self.AtlasLoaded, self.atlasVolume, self.atlasFid = logic.runAtlasLoad(self.atlasSelection)
 		self.atlasVolume.SetDisplayVisibility(1) #Make atlas visible
 
-		# #Display Atlas in 3D View
-		# sliceWidgetR 	= slicer.app.layoutManager().sliceWidget('Red')
-		# sliceWidgetY 	= slicer.app.layoutManager().sliceWidget('Yellow')
-		# sliceWidgetG 	= slicer.app.layoutManager().sliceWidget('Green')
-		# sliceLogicR = sliceWidgetR.sliceLogic()
-		# sliceLogicY = sliceWidgetY.sliceLogic()
-		# sliceLogicG = sliceWidgetG.sliceLogic()
-		# sliceNodeR = sliceLogicR.GetSliceNode()
-		# sliceNodeY = sliceLogicY.GetSliceNode()
-		# sliceNodeG = sliceLogicG.GetSliceNode()
-		# sliceNodeR.SetSliceVisible(True)
-		# sliceNodeY.SetSliceVisible(True)
-		# sliceNodeG.SetSliceVisible(True)
-
-
 	def onOWButton(self):
 
 		#Setup Fiduical placement
@@ -281,7 +256,7 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 
 		#Enable fiducial placement
 		self.fiducialWidget.setPlaceModeEnabled(True)
-		#Enable Cochlear Nevre button
+		#Enable Cochlear Nerve button
 		self.OWButton.enabled = False
 		self.CNButton.enabled = True
 
@@ -411,9 +386,6 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		logic = AValue3DSlicerModuleLogic()
 
 		#Run module logic
-		# logic.run(	self.inputSelector.currentNode(), self.outputSelector.currentNode(),
-		# 			self.atlasVolume, self.LandmarkTrans,
-		# 			self.outputTransformSelector.currentNode(), self.atlasFid )
 		logic.run(	self.cropVolume, self.outputSelector.currentNode(),
 					self.atlasVolume, self.LandmarkTrans,
 					self.outputTransformSelector.currentNode(), self.atlasFid )
@@ -481,7 +453,6 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 		#										 'Atlas_AValue_MF.fcsv')
 
 		#create atlasnode
-
 		if isRight:
 			atlasNode = slicer.util.loadVolume(atlasLocationR, returnNode=True)
 			atlasFiducial = slicer.util.loadMarkupsFiducialList(fiducialLocationR, returnNode=True)
@@ -583,8 +554,7 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 
 	def runCropVolume(self, roi, volume):
 
-		#slicer.mrmlScene.AddNode(cropParam)
-		#TODO - Crop volume
+		#Create Crop Volume Parameter node
 		cropParamNode = slicer.vtkMRMLCropVolumeParametersNode()
 		cropParamNode.SetScene(slicer.mrmlScene)
 		cropParamNode.SetName('Crop_volume_Node1')
@@ -635,16 +605,17 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 		logging.info('....Printing Affine Transform....')
 		logging.info(self.linearTrans)
 
-		#Apply linear transform on Atlas Volume
-		#atlasVolume.SetAndObserveTransformNodeID(linearTrans.GetID())
-		#slicer.vtkSlicerTransformLogic().hardenTransform(atlasVolume)
+		#Apply linear transform result from step 1 on Atlas Volume
+		atlasVolume.SetAndObserveTransformNodeID(self.linearTrans.GetID())
+		slicer.vtkSlicerTransformLogic().hardenTransform(atlasVolume)
 
 		# Set parameters and run BSpline registration Step 2
 		cliParams = {	'fixedVolume'		: inputVolume.GetID(),
 		 				'movingVolume'		: atlasVolume.GetID(),
 						'bsplineTransform' 	: outputTrans.GetID() }
-		cliParams.update({	'samplingPercentage': 1,
-		 					'initialTransform' 	: self.linearTrans.GetID() })
+						#'initialTransform' 	: self.linearTrans.GetID()
+		cliParams.update({	'samplingPercentage'	: 1,
+		 					'initialTransfomMode' 	: 'off' })
 		cliParams.update({	'transformType'	: 'BSpline',
 							'splineGridSize': '3,3,3'})
 		cliParams.update({	'numberOfIterations' 	: 3000,
