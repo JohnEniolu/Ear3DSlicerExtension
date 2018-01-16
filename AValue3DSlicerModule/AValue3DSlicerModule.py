@@ -1,4 +1,5 @@
 import os
+import inspect
 import unittest
 import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
@@ -237,7 +238,6 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		self.atlasVolume.SetDisplayVisibility(1) #Make atlas visible
 
 	def onOWButton(self):
-
 		#Setup Fiduical placement
 		self.placedLandmarkNode = slicer.vtkMRMLMarkupsFiducialNode()
 		slicer.mrmlScene.AddNode(self.placedLandmarkNode)
@@ -259,7 +259,6 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		#Enable Cochlear Nerve button
 		self.OWButton.enabled = False
 		self.CNButton.enabled = True
-
 
 	def onCNButton(self):
 
@@ -343,7 +342,6 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		self.defineCropButton.enabled	= True # enabled next step "Defining Crop region of interest"
 		self.placedLandmarkNode.SetDisplayVisibility(0) #turn off display of placed landmarks -TODO - Is this needed
 
-
 	def onDefineCropButton(self):
 
 		slicer.app.layoutManager().setLayout(1) #Set to appropriate view (conventional)
@@ -389,9 +387,9 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		logic.run(	self.cropVolume, self.outputSelector.currentNode(),
 					self.atlasVolume, self.LandmarkTrans,
 					self.outputTransformSelector.currentNode(), self.atlasFid )
+					
 	def cleanup(self):
 		pass
-
 #
 # AValue3DSlicerModuleLogic
 #
@@ -435,22 +433,13 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 		return True
 
 	#load Atlas and corresponding A-Value Fiducials
-	#TODO -Change file location to server location
-	def loadAtlasNodeAndFiducials(self, isRight,
-									atlasLocationR 		= '/Users/JohnEniolu/Documents/AValueModuleData/initialAtlasR.nrrd' ,
-									fiducialLocationR 	= '/Users/JohnEniolu/Documents/AValueModuleData/Atlas_AValue_F.fcsv',
-									atlasLocationL 		= '/Users/JohnEniolu/Documents/AValueModuleData/initialAtlasL.nrrd' ,
-									fiducialLocationL	= '/Users/JohnEniolu/Documents/AValueModuleData/Atlas_AValue_MF.fcsv'):
+	def loadAtlasNodeAndFiducials(self, isRight):
 
-		#TODO -Specify location of required data on server
-		#atlasLocationR 	= urllib.urlretrieve('<...Insert Server Location of Right Atlas...>',
-		#										 'initialAtlasR.nrrd')
-		#fiducialLocationR 	= urllib.urlretrieve('<...Insert Server Location of right A-Value...>',
-		#										 'Atlas_AValue_F.fcsv')
-		#atlasLocationL 	= urllib.urlretrieve('<...Insert Server Location of left Atlas...>',
-		#										 'initialAtlasL.nrrd')
-		#fiducialLocationL	= urllib.urlretrieve('<...Insert Server Location of left A-Value...>',
-		#										 'Atlas_AValue_MF.fcsv')
+		#Retrieve required data (data must be in the same folder as the .py script)
+		atlasLocationR 		= os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))) + '/initialAtlasR.nrrd'
+		fiducialLocationR 	= os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))) + '/Atlas_AValue_F.fcsv'
+		atlasLocationL 		= os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))) + '/initialAtlasL.nrrd'
+		fiducialLocationL	= os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))) + '/Atlas_AValue_MF.fcsv'
 
 		#create atlasnode
 		if isRight:
@@ -463,18 +452,12 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 			logging.info('Loaded left ear atlas')
 		return atlasNode, atlasFiducial
 
-	#TODO: Change file location to server location
-	def loadAtlasLandmark(	self, isRight,
-	 						landmarkLocationR = '/Users/JohnEniolu/Documents/AValueModuleData/initialLandmarkREG_R.fcsv',
-							landmarkLocationL = '/Users/JohnEniolu/Documents/AValueModuleData/initialLandmarkREG_L.fcsv'):
-		#Load fiducial landmark for initial atlas landmark registration
+	#Load fiducial landmark for initial atlas landmark registration
+	def loadAtlasLandmark(self, isRight):
 
-
-		#TODO- Specify location of required data on server
-		#landmarklLocationR 	= urllib.urlretrieve('<...Insert Server Location of right landmarks...>',
-		#										 'initialLandmarkREG_R.fcsv')
-		#landmarkLocationL		= urllib.urlretrieve('<...Insert Server Location of left landmarks...>',
-		#										 'initialLandmarkREG_L.fcsv')
+		#Retrieve required data (data must be in the same folder as the .py script)
+		landmarkLocationR	= os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))) + '/initialLandmarkREG_R.fcsv'
+		landmarkLocationL	= os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))) + '/initialLandmarkREG_L.fcsv'
 
 		if isRight:
 			landmarkFid = slicer.util.loadMarkupsFiducialList(landmarkLocationR, returnNode=True)
