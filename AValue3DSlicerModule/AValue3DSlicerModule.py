@@ -331,52 +331,61 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		sliceLayout = slicer.app.layoutManager()
 		sliceLogicR = sliceLayout.sliceWidget('Red').sliceLogic()
 		compositeNodeR = sliceLogicR.GetSliceCompositeNode()
-		compositeNodeR.SetForegroundOpacity(0.5)
+		compositeNodeR.SetForegroundOpacity(0.4)
 		sliceLogicY = sliceLayout.sliceWidget('Yellow').sliceLogic()
 		compositeNodeY = sliceLogicY.GetSliceCompositeNode()
-		compositeNodeY.SetForegroundOpacity(0.5)
+		compositeNodeY.SetForegroundOpacity(0.4)
 		sliceLogicG = sliceLayout.sliceWidget('Green').sliceLogic()
 		compositeNodeG = sliceLogicG.GetSliceCompositeNode()
-		compositeNodeG.SetForegroundOpacity(0.5)
+		compositeNodeG.SetForegroundOpacity(0.4)
 
 		self.defineCropButton.enabled	= True # enabled next step "Defining Crop region of interest"
 		self.placedLandmarkNode.SetDisplayVisibility(0) #turn off display of placed landmarks -TODO - Is this needed
 
 	def onDefineCropButton(self):
 
-		slicer.app.layoutManager().setLayout(1) #Set to appropriate view (conventional)
+		#slicer.app.layoutManager().setLayout(1) #Set to appropriate view (conventional)
 
 		#Define Cropped Volume Parameters
-		self.cropVolumeNode = slicer.vtkMRMLCropVolumeParametersNode()
-		self.cropVolumeNode.SetScene(slicer.mrmlScene)
-		self.cropVolumeNode.SetName('Crop_volume_Node')
-		self.cropVolumeNode.SetInputVolumeNodeID(self.atlasVolume.GetID())
-		self.cropVolumeNode.VoxelBasedOn()
-		logging.info(self.cropVolumeNode.GetVoxelBased())
-		slicer.mrmlScene.AddNode(self.cropVolumeNode)
+		#self.cropVolumeNode = slicer.vtkMRMLCropVolumeParametersNode()
+		#self.cropVolumeNode.SetScene(slicer.mrmlScene)
+		#self.cropVolumeNode.SetName('Crop_volume_Node')
+		#self.cropVolumeNode.SetInputVolumeNodeID(self.atlasVolume.GetID())
+		#self.cropVolumeNode.VoxelBasedOn()
+		#logging.info(self.cropVolumeNode.GetVoxelBased())
+		#slicer.mrmlScene.AddNode(self.cropVolumeNode)
 
 
 		#Fit ROI to input Volume and initialize in scene
 		logic = AValue3DSlicerModuleLogic()
-		self.atlasROI 		= slicer.vtkMRMLAnnotationROINode()
-		self.atlasROI.Initialize(slicer.mrmlScene)
-		self.cropVolumeNode.SetROINodeID(self.atlasROI.GetID())
-		self.atlasROI	= logic.runDefineCropROI(self.cropVolumeNode)
+		#self.atlasROI 		= slicer.vtkMRMLAnnotationROINode()
+		#self.atlasROI.Initialize(slicer.mrmlScene)
+		#self.cropVolumeNode.SetROINodeID(self.atlasROI.GetID())
+		#self.atlasROI	= logic.runDefineCropROI(self.cropVolumeNode)
+		self.atlasROI	= logic.runDefineCropROIVoxel(self.atlasVolume)
 
 
 		#Instruct user on ROI placement
-		slicer.util.infoDisplay("NOTE: Ensure Region of Interest (ROI) encloses atlas in the:"+
-								"\n\nAxial (Red)\nSagittal(Yellow)\nCoronal(Green)\n\n"+
+		slicer.util.infoDisplay("NOTE: Ensure Region of Interest (ROI) encloses atlas\n\n" +
 		 						"Press okay to continue" )
 
 		self.cropButton.enabled = True
 
 	def onCropButton(self):
-		logic = AValue3DSlicerModuleLogic()
 
 		#Crop Image
+		logic = AValue3DSlicerModuleLogic()
 		self.cropVolume = logic.runCropVolume(	self.atlasROI,
 												self.inputSelector.currentNode() )
+
+		#Set Crop Image to background
+		applicationLogic 	= slicer.app.applicationLogic()
+		applicationLogic.GetSelectionNode().SetActiveVolumeID(self.cropVolume.GetID())
+		applicationLogic.PropagateBackgroundVolumeSelection(0)
+		applicationLogic.FitSliceToAll()
+
+		#Turn off visibility of ROI
+		self.atlasROI.SetDisplayVisibility(0)
 
 	def onApplyButton(self):
 
@@ -387,7 +396,7 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 		logic.run(	self.cropVolume, self.outputSelector.currentNode(),
 					self.atlasVolume, self.LandmarkTrans,
 					self.outputTransformSelector.currentNode(), self.atlasFid )
-					
+
 	def cleanup(self):
 		pass
 #
@@ -534,6 +543,26 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 		roi.SetRadiusXYZ(volDim[0]/2, volDim[1]/2, volDim[2]/2 )
 		return roi
 
+	def runDefineCropROIVoxel(self, inputVol):
+
+		#create crop volume parameter node
+		cropParamNode = slicer.vtkMRMLCropVolumeParametersNode()
+		cropParamNode.SetScene(slicer.mrmlScene)
+		cropParamNode.SetName('Template_ROI')
+		cropParamNode.SetInputVolumeNodeID(inputVol.GetID())
+
+		#create ROI
+		template_roi = slicer.vtkMRMLAnnotationROINode()
+		slicer.mrmlScene.AddNode(template_roi)
+		cropParamNode.SetROINodeID(template_roi.GetID())
+
+		#Fit roi to input image
+		slicer.mrmlScene.AddNode(cropParamNode)
+		slicer.modules.cropvolume.logic().SnapROIToVoxelGrid(cropParamNode)
+		slicer.modules.cropvolume.logic().FitROIToInputVolume(cropParamNode)
+
+		return template_roi
+
 
 	def runCropVolume(self, roi, volume):
 
@@ -542,17 +571,28 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 		cropParamNode.SetScene(slicer.mrmlScene)
 		cropParamNode.SetName('Crop_volume_Node1')
 
-		#Set volume and ROI required for cropping
+
+
+		#Create Crop Volume Parameter node
+		cropParamNode = slicer.vtkMRMLCropVolumeParametersNode()
+		cropParamNode.SetScene(slicer.mrmlScene)
+		cropParamNode.SetName('Crop_volume_Node1')
 		cropParamNode.SetInputVolumeNodeID(volume.GetID())
 		cropParamNode.SetROINodeID(roi.GetID())
-		cropParamNode.VoxelBasedOff()
-		logging.info(cropParamNode.GetVoxelBased())
 		slicer.mrmlScene.AddNode(cropParamNode)
 
+		#Set volume and ROI required for cropping
+		#cropParamNode.SetInputVolumeNodeID(volume.GetID())
+		#cropParamNode.SetROINodeID(roi.GetID())
+		#cropParamNode.VoxelBasedOff()
+		#logging.info(cropParamNode.GetVoxelBased())
+		#slicer.mrmlScene.AddNode(cropParamNode)
+
 		#Apply Cropping
-		cropVolumeLogic = slicer.modules.cropvolume.logic()
-		cropVolumeLogic.Apply(cropParamNode)
-		cropVol = slicer.mrmlScene.GetNodeByID(cropParamNode.GetOutputVolumeNodeID())
+		slicer.modules.cropvolume.logic().Apply(cropParamNode)
+		#cropVolumeLogic = slicer.modules.cropvolume.logic()
+		#cropVolumeLogic.Apply(cropParamNode)
+		cropVol = slicer.mrmlScene.GetNodeByID(cropParamNode.GetOutputVolumeNodeID()) #TODO - Make cropped output visible!!
 
 		return cropVol
 
@@ -646,7 +686,7 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 
 		slicer.util.infoDisplay(outputDisp)
 
-		logging.info('Processing completed')
+		logging.info('Processing completed') #TODO - Deal with output Volume!!
 
 		return True
 
