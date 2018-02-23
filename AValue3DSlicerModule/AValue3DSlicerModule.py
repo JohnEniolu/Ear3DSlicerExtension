@@ -346,26 +346,11 @@ class AValue3DSlicerModuleWidget(ScriptedLoadableModuleWidget):
 
 		#slicer.app.layoutManager().setLayout(1) #Set to appropriate view (conventional)
 
-		#Define Cropped Volume Parameters
-		#self.cropVolumeNode = slicer.vtkMRMLCropVolumeParametersNode()
-		#self.cropVolumeNode.SetScene(slicer.mrmlScene)
-		#self.cropVolumeNode.SetName('Crop_volume_Node')
-		#self.cropVolumeNode.SetInputVolumeNodeID(self.atlasVolume.GetID())
-		#self.cropVolumeNode.VoxelBasedOn()
-		#logging.info(self.cropVolumeNode.GetVoxelBased())
-		#slicer.mrmlScene.AddNode(self.cropVolumeNode)
-
-
-		#Fit ROI to input Volume and initialize in scene
+		#Define logic & retrieve atlas/template region of interest (ROI)
 		logic = AValue3DSlicerModuleLogic()
-		#self.atlasROI 		= slicer.vtkMRMLAnnotationROINode()
-		#self.atlasROI.Initialize(slicer.mrmlScene)
-		#self.cropVolumeNode.SetROINodeID(self.atlasROI.GetID())
-		#self.atlasROI	= logic.runDefineCropROI(self.cropVolumeNode)
 		self.atlasROI	= logic.runDefineCropROIVoxel(self.atlasVolume)
 
-
-		#Instruct user on ROI placement
+		#User to ensure proper ROI placement
 		slicer.util.infoDisplay("NOTE: Ensure Region of Interest (ROI) encloses atlas\n\n" +
 		 						"Press okay to continue" )
 
@@ -571,8 +556,6 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 		cropParamNode.SetScene(slicer.mrmlScene)
 		cropParamNode.SetName('Crop_volume_Node1')
 
-
-
 		#Create Crop Volume Parameter node
 		cropParamNode = slicer.vtkMRMLCropVolumeParametersNode()
 		cropParamNode.SetScene(slicer.mrmlScene)
@@ -581,17 +564,8 @@ class AValue3DSlicerModuleLogic(ScriptedLoadableModuleLogic):
 		cropParamNode.SetROINodeID(roi.GetID())
 		slicer.mrmlScene.AddNode(cropParamNode)
 
-		#Set volume and ROI required for cropping
-		#cropParamNode.SetInputVolumeNodeID(volume.GetID())
-		#cropParamNode.SetROINodeID(roi.GetID())
-		#cropParamNode.VoxelBasedOff()
-		#logging.info(cropParamNode.GetVoxelBased())
-		#slicer.mrmlScene.AddNode(cropParamNode)
-
 		#Apply Cropping
 		slicer.modules.cropvolume.logic().Apply(cropParamNode)
-		#cropVolumeLogic = slicer.modules.cropvolume.logic()
-		#cropVolumeLogic.Apply(cropParamNode)
 		cropVol = slicer.mrmlScene.GetNodeByID(cropParamNode.GetOutputVolumeNodeID()) #TODO - Make cropped output visible!!
 
 		return cropVol
